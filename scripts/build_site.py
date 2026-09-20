@@ -250,7 +250,7 @@ def page(corpus, report, clones, risk):
 <title>Which skills are worth installing? · whichskills.dev</title>
 <meta name="description" content="{esc(desc)}">
 <link rel="canonical" href="{SITE}/"><meta name="theme-color" content="#0c0a09">
-<meta property="og:title" content="Which skills are worth installing?"><meta property="og:description" content="{esc(desc)}"><meta property="og:url" content="{SITE}/"><meta property="og:image" content="{SITE}/og.png"><meta property="og:type" content="website">
+<meta property="og:title" content="Which skills are worth installing?"><meta property="og:description" content="{esc(desc)}"><meta property="og:url" content="{SITE}/"><meta property="og:image" content="{SITE}/og.png"><meta property="og:image:width" content="1200"><meta property="og:image:height" content="630"><meta property="og:image:alt" content="Which skills are worth installing? 157 repos, 18,041 skills read, 36% identical copies, 0 read as malware."><meta property="og:type" content="website">
 <meta name="twitter:card" content="summary_large_image"><meta name="twitter:title" content="whichskills.dev"><meta name="twitter:description" content="{esc(desc)}"><meta name="twitter:image" content="{SITE}/og.png">
 <link rel="icon" href="/favicon.svg"><link rel="stylesheet" href="/css/style.css?v=10"><script defer src="/js/main.js?v=5"></script>
 <script defer src="https://wave.21nauts.com/script.js" data-website-id="ce023ab7-f50a-4ff0-ae87-e8909d6b257f"></script>
