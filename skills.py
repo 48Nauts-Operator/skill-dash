@@ -29,6 +29,8 @@ RISK_PATTERNS = [
     ('hidden_text', re.compile(r'[\u200b\u200c\u200d\u200e\u200f\u2060\u2061\u2062\u2063\u2064\ufeff\u00ad]|<!--[^>]{0,400}(instruction|ignore|must|always|never)[^>]{0,400}-->', re.I)),
     ('elevated', re.compile(r'\bsudo\b|chmod\s+[0-7]*777|launchctl\s+(load|bootstrap)|crontab\s+-|\bosascript\b|defaults\s+write', re.I)),
     ('self_modifying', re.compile(r'~/\.claude/(settings|CLAUDE\.md)|\.claude/settings\.json|settings\.local\.json|~/\.zshrc|~/\.bashrc|~/\.gitconfig', re.I)),
+    ('runtime_fetch', re.compile(r'\bnpx\s+(?:-y\s+|--yes\s+)?(?:@[\w.-]+/)?[\w.-]+(?![\w.-]*@\d)|\buvx\s+[\w.-]+|\bpip3?\s+install\s+(?![^\n]*==)[a-z]|\bnpm\s+i(?:nstall)?\s+-g\b|bash\s+<\(\s*curl|sh\s+-c\s+["\']?\$\(\s*curl', re.I)),
+    ('homoglyph', re.compile(r'[\u202a-\u202e\u2066-\u2069]|\b\w*[A-Za-z]\w*[\u0400-\u04ff\u0370-\u03ff]\w*\b|\b\w*[\u0400-\u04ff\u0370-\u03ff]\w*[A-Za-z]\w*\b|[A-Za-z0-9+/]{240,}={0,2}')),
 ]
 URL = re.compile(r'https?://([a-z0-9.-]+\.[a-z]{2,})', re.I)
 
@@ -72,10 +74,30 @@ def enabled_plugins():
     return out
 
 
+def unpinned_deps(where, content):
+    """Dependency manifests: names without an exact version. Returns a sample string or None."""
+    name = where.rsplit('/', 1)[-1]
+    if name == 'package.json':
+        try:
+            data = json.loads(content)
+        except ValueError:
+            return None
+        loose = [f'{k}@{v or "latest"}' for sec in ('dependencies', 'devDependencies') for k, v in (data.get(sec) or {}).items()
+                 if not isinstance(v, str) or not re.fullmatch(r'\d[\w.+-]*', v)]
+        return ', '.join(loose[:6]) if loose else None
+    if name in ('requirements.txt', 'requirements-dev.txt'):
+        loose = [l.strip() for l in content.splitlines() if l.strip() and not l.startswith(('#', '-')) and '==' not in l and '@' not in l]
+        return ', '.join(loose[:6]) if loose else None
+    return None
+
+
 def risk_flags(texts):
     """texts: {label: content}. Returns [{flag, where, sample}] with one sample per flag per file, plus external hosts."""
     flags, hosts = [], set()
     for where, content in texts.items():
+        loose = unpinned_deps(where, content)
+        if loose:
+            flags.append({'flag': 'unpinned_deps', 'where': where, 'sample': loose[:200]})
         for name, rx in RISK_PATTERNS:
             m = rx.search(content)
             if m:
@@ -137,6 +159,70 @@ def read_skill(path, plugin=None, root=None):
     }
 
 
+HOOK_CMD = re.compile(r'"command"\s*:\s*"((?:[^"\\]|\\.)+)"')
+HOOK_EVENT = re.compile(r'"(SessionStart|SessionEnd|UserPromptSubmit|PreToolUse|PostToolUse|Notification|Stop|SubagentStop|PreCompact)"')
+
+
+def read_plugin(folder, plugin=None, root=None):
+    """A plugin manifest as a row: hooks run shell without user action, MCP servers launch binaries."""
+    texts = {}
+    for rel in ('.claude-plugin/plugin.json', 'hooks/hooks.json', '.claude-plugin/marketplace.json', '.mcp.json'):
+        f = folder / rel
+        if f.exists():
+            texts[rel] = f.read_text(errors='replace')[:20000]
+    meta = {}
+    try:
+        meta = json.loads(texts.get('.claude-plugin/plugin.json', '{}'))
+    except ValueError:
+        pass
+    hooks_ref = meta.get('hooks')
+    if isinstance(hooks_ref, str) and (folder / hooks_ref).exists():
+        texts[hooks_ref.lstrip('./')] = (folder / hooks_ref).read_text(errors='replace')[:20000]
+    hook_texts = {k: v for k, v in texts.items() if 'hook' in k.lower()}
+    if isinstance(meta.get('hooks'), dict):
+        hook_texts['plugin.json#hooks'] = json.dumps(meta['hooks'])
+    if 'mcpServers' in meta:
+        texts['plugin.json#mcpServers'] = json.dumps(meta['mcpServers'])
+    commands = sorted(f.name for f in (folder / 'commands').glob('*.md')) if (folder / 'commands').is_dir() else []
+    scripts = sorted({f.name for f in folder.rglob('*') if f.is_file() and f.suffix in SCRIPT_SUFFIXES
+                      and 'node_modules' not in f.parts and f.name not in GENERIC})
+    flags, hosts = risk_flags(texts)
+    for where, content in hook_texts.items():
+        events = sorted(set(HOOK_EVENT.findall(content)))
+        for cmd in HOOK_CMD.findall(content)[:6]:
+            flags.append({'flag': 'auto_run_hook', 'where': where, 'sample': f"{'/'.join(events) or 'hook'}: {cmd}"[:200]})
+    for cmd in HOOK_CMD.findall(texts.get('plugin.json#mcpServers', '') + texts.get('.mcp.json', ''))[:6]:
+        flags.append({'flag': 'mcp_server', 'where': 'mcpServers', 'sample': cmd[:200]})
+    name = meta.get('name') or folder.name
+    author = meta.get('author')
+    author = author.get('name', '') if isinstance(author, dict) else (author or '')
+    rel = str(folder.relative_to(root)) if root else name
+    body = '\n\n'.join(f'## {k}\n{v}' for k, v in texts.items())
+    return {
+        'id': (f'{plugin}:@plugin' if plugin else f'{rel}/@plugin'),
+        'name': name, 'plugin': plugin, 'kind': 'manifest',
+        'description': (meta.get('description') or 'Plugin manifest') + f" · {len(hook_texts)} hook file(s), {len(commands)} command(s)" + (f' · author {author}' if author else ''),
+        'path': str(folder), 'symlink': folder.is_symlink(),
+        'imported_from': meta.get('repository') if isinstance(meta.get('repository'), str) else (meta.get('homepage') or ''),
+        'disable_model_invocation': False, 'user_invocable': False,
+        'body_chars': len(body), 'body_excerpt': body[:2500], 'body_full': body[:12000],
+        'files_text': texts, 'scripts': scripts + commands, 'risk_flags': flags, 'external_hosts': hosts,
+        'installed_at': iso(folder.stat().st_mtime),
+    }
+
+
+def plugin_dirs(root, exclude=()):
+    seen = set()
+    for marker in ('.claude-plugin/plugin.json', 'hooks/hooks.json', '.claude-plugin/marketplace.json'):
+        for f in root.rglob(marker):
+            d = f.parent.parent if marker.startswith(('.claude-plugin', 'hooks')) else f.parent
+            relparts = d.relative_to(root).parts
+            if 'node_modules' in f.parts or any(x.startswith('.') or x in exclude for x in relparts):
+                continue
+            seen.add(d)
+    return sorted(seen)
+
+
 def load_skills(roots=None, exclude=()):
     """Live tree (own + enabled plugins) by default; any directories of SKILL.md files when roots are given.
     exclude: path segments to skip under the roots (e.g. a folder of generated connector skills)."""
@@ -147,10 +233,12 @@ def load_skills(roots=None, exclude=()):
             # hidden dirs such as .gemini/ hold mirrored copies; they are not separate skills
             skills += [read_skill(p, root=root) for p in sorted(root.rglob('SKILL.md'))
                        if 'node_modules' not in p.parts and not any(part.startswith('.') or part in exclude for part in p.relative_to(root).parts)]
+            skills += [read_plugin(d, root=root) for d in plugin_dirs(root, exclude)]
         return skills
     skills = [read_skill(p) for p in sorted(OWN.glob('*/SKILL.md'))]
     for plugin, root in enabled_plugins():
         skills += [read_skill(p, plugin) for p in sorted(root.glob('*/SKILL.md'))]
+        skills.append(read_plugin(root.parent, plugin))
     return skills
 
 
