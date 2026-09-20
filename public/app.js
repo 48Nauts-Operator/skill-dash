@@ -1,10 +1,10 @@
 'use strict';
 const $ = id => document.getElementById(id);
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-const acolors = {keep:'#97b98a',rewrite_description:'#80b8f2',merge:'#ba91e5',delete:'#f17b89',unclear:'#9b9baf'};
+const acolors = {keep:'#4fc3b0',rewrite_description:'#80b8f2',merge:'#ba91e5',delete:'#f17b89',unclear:'#9b9baf'};
 const alabels = {keep:'Keep',rewrite_description:'Rewrite',merge:'Merge',delete:'Delete',unclear:'Unclear'};
-const dcolors = {keep:'#97b98a',rewrite:'#80b8f2',merge:'#ba91e5',delete:'#f17b89'};
-const scolors = ['#f17b89','#e7ba6d','#97b98a','#83ccbe'];
+const dcolors = {keep:'#4fc3b0',rewrite:'#80b8f2',merge:'#ba91e5',delete:'#f17b89'};
+const scolors = ['#f17b89','#f0a05a','#7fb8ad','#4fc3b0'];
 const icons = {
  judges:'<path d="M4 6h16M4 12h16M4 18h16"/><circle cx="9" cy="6" r="2"/><circle cx="15" cy="12" r="2"/><circle cx="9" cy="18" r="2"/>',
  overview:'<rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/>',
@@ -84,9 +84,9 @@ function render() {
  $('footer-note').textContent=`${data.scan.since?'Evidence since '+date(data.scan.since):'No transcripts scanned'} · ${data.overlap.pairs?fmt(data.overlap.pairs)+' overlap pairs':'no overlap audit yet'} · ${decided} decided`;
  const judged=Object.values(actions).reduce((a,b)=>a+b,0);let offset=0;const circumference=2*Math.PI*56;
  const slices=Object.entries(actions).map(([k,v])=>{const dash=judged?v/judged*circumference:0;const svg=`<circle cx="70" cy="70" r="56" fill="none" stroke="${acolors[k]}" stroke-width="13" stroke-dasharray="${Math.max(0,dash-1.6)} ${circumference}" stroke-dashoffset="${-offset}"/>`;offset+=dash;return v?svg:'';}).join('');
- $('donut').innerHTML=`<div class="donut-wrap"><svg viewBox="0 0 140 140" role="img" aria-label="${judged} judged skills"><circle cx="70" cy="70" r="56" fill="none" stroke="#243021" stroke-width="13"/>${slices}</svg><div class="donut-center">${fmt(judged)}<span>JUDGED</span></div></div>`;
+ $('donut').innerHTML=`<div class="donut-wrap"><svg viewBox="0 0 140 140" role="img" aria-label="${judged} judged skills"><circle cx="70" cy="70" r="56" fill="none" stroke="#2b2622" stroke-width="13"/>${slices}</svg><div class="donut-center">${fmt(judged)}<span>JUDGED</span></div></div>`;
  $('category-total').textContent=fmt(judged)+' judged';$('category-legend').innerHTML=Object.entries(actions).map(([k,v])=>`<button class="legend-item ${filter===k?'active':''}" data-filter="${k}"><i style="background:${acolors[k]}"></i>${alabels[k]}<b>${fmt(v)}</b></button>`).join('');
- $('signals').innerHTML=[['delete','Delete candidates','#f17b89','Jev says remove',actions.delete],['unused','Never invoked','#e7ba6d','No Skill-tool use on record',never],['undecided','Awaiting decision','#91b9ee','Judged, not decided',undecided]].map(([k,label,c,sub,v])=>`<button class="signal" data-filter="${k}"><span>${label}</span><strong style="color:${c}">${fmt(v)}</strong><small>${sub}</small></button>`).join('');
+ $('signals').innerHTML=[['delete','Delete candidates','#f17b89','Jev says remove',actions.delete],['unused','Never invoked','#f0a05a','No Skill-tool use on record',never],['undecided','Awaiting decision','#91b9ee','Judged, not decided',undecided]].map(([k,label,c,sub,v])=>`<button class="signal" data-filter="${k}"><span>${label}</span><strong style="color:${c}">${fmt(v)}</strong><small>${sub}</small></button>`).join('');
  $('priority-bars').innerHTML=[['3','Essential'],['2','Useful'],['1','Marginal'],['0','Adds nothing']].map(([k,label])=>`<div class="priority-row"><span>${label}</span><div class="bar-track"><div class="bar" style="background:${scolors[k]};width:${done?levels[k]/done*100:0}%"></div></div><b>${fmt(levels[k])}</b></div>`).join('');
  const latencies=[...(recent?.latencies||[])].sort((a,b)=>a-b);const avg=latencies.length?latencies.reduce((a,b)=>a+b,0)/latencies.length:null;
  $('metrics').innerHTML=[['AVG. LATENCY',avg===null?'—':avg.toFixed(0),avg===null?'':'ms',recent?'Jev API · per skill':'No completed run yet'],['THROUGHPUT',recent?.elapsed_s?(recent.completed/recent.elapsed_s).toFixed(2):'—','skills/s','Batch wall time, including retries'],['TOKENS USED',recent?fmt((recent.input_tokens||0)+(recent.output_tokens||0)):'—','','Measured from API usage'],['DECIDED',total?`${decided}`:'—',total?`/ ${total}`:'','Keep, rewrite, merge or delete'],['NEVER INVOKED',data.scan.transcripts?`${never}`:'—',data.scan.transcripts?`/ ${total}`:'',data.scan.since?`Since ${date(data.scan.since)} · ${fmt(data.scan.transcripts)} transcripts`:'Scan pending']].map(([label,n,unit,caption])=>`<div class="metric"><div class="metric-label">${label}</div><div class="metric-number">${n} <small>${unit}</small></div><div class="metric-caption">${caption}</div></div>`).join('');

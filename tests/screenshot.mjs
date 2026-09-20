@@ -13,10 +13,12 @@ page.on('console', m => { if (m.type() === 'error') errors.push('console: ' + m.
 await page.goto(base + '/#overview');
 await page.waitForFunction(() => document.querySelectorAll('#rows tr').length > 1, null, { timeout: 15000 });
 await page.screenshot({ path: `${out}/shot-overview.png`, fullPage: true });
-await page.click('[data-skill="code-structure"]');
+const first = await page.getAttribute('#rows [data-skill]', 'data-skill');
+await page.click('#rows [data-skill]');
 await page.waitForSelector('#decision-form');
 await page.screenshot({ path: `${out}/shot-drawer.png`, fullPage: false });
 await page.selectOption('#decision-form [name=decision]', 'delete');
+const target = first;
 await page.fill('#decision-form [name=note]', 'smoke test, cleared below');
 await page.click('#decision-form button[type=submit]');
 await page.waitForFunction(() => document.querySelector('#toast')?.textContent.includes('Decision saved'), null, { timeout: 8000 });
@@ -26,5 +28,7 @@ await page.waitForSelector('#judgment-cards .judgment-card');
 await page.screenshot({ path: `${out}/shot-judges.png`, fullPage: true });
 const cards = await page.$$eval('#judgment-cards .judgment-card', n => n.length);
 console.log(JSON.stringify({ cards, errors }, null, 1));
+// clear the smoke decision so no fake verdict survives the test
+await fetch(base + '/api/decide', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: target, decision: '', note: '' }) });
 await browser.close();
 if (errors.length) process.exit(1);
