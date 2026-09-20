@@ -38,6 +38,12 @@ class Application:
         self.evidence, self.scan = {}, {'status': 'idle'}
         self.overlap = {'status': 'idle'}
         self.rec = {'status': 'idle'}
+        last = self.data_dir / 'recommend.json'
+        if last.exists():  # a restart must not hide the last search
+            try:
+                prev = json.loads(last.read_text()); self.rec = {'status': 'done', 'finished_at': prev.get('finished_at', ''), 'candidates': prev.get('candidates', 0), 'tokens': prev.get('tokens', 0)}
+            except ValueError:
+                pass
         self.rescan()
 
     # --- skills + evidence -------------------------------------------------
@@ -143,7 +149,10 @@ class Application:
 
     def recommendations(self):
         p = self.data_dir / 'recommend.json'
-        return json.loads(p.read_text()) if p.exists() else None
+        if not p.exists(): return None
+        out = json.loads(p.read_text())
+        out['clusters'] = recommend.cluster(out['results'])  # same job once, alternatives underneath
+        return out
 
     def state(self):
         with self.lock:

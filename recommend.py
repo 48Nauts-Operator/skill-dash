@@ -148,3 +148,24 @@ def run(app, with_prompts=False, k=200, workers=4, progress=None, include_flagge
     tokens = sum(v for r in results for kk, v in (r.get('usage') or {}).items() if kk.endswith('tokens') and isinstance(v, int))
     return {'results': [{kk: v for kk, v in r.items() if kk not in ('body', 'usage')} for r in results], 'pool': pool_size, 'candidates': len(cands),
             'with_prompts': with_prompts, 'include_flagged': include_flagged, 'tokens': tokens, 'profile_summary': {'own_skills': len(own), 'most_used': prof['most_used'], 'requests': len(prof.get('recent_requests', []))}}
+
+
+def cluster(results, threshold=0.35):
+    """Group scored candidates that do the same job. Head-based: a row joins a cluster only if its description resembles the
+    cluster's best row directly (cosine over name and description tokens), so chains cannot pull unrelated jobs together."""
+    scored = sorted((r for r in results if r.get('fit') is not None), key=lambda r: (-(r.get('gap') or 0), -(r.get('fit') or 0)))
+    def vec(r):
+        c = Counter(toks(r['n'].replace('-', ' ').replace('_', ' ') + ' ' + r['d']))
+        norm = math.sqrt(sum(v * v for v in c.values())) or 1
+        return {t: v / norm for t, v in c.items()}
+    cos = lambda a, b: sum(v * b.get(t, 0) for t, v in a.items())
+    heads = []
+    for r in scored:
+        v = vec(r)
+        for h in heads:
+            if cos(v, h['_vec']) >= threshold:
+                h['alternatives'].append({'n': r['n'], 'r': r['r'], 'p': r['p'], 'c': r['c'], 'gap': r.get('gap'), 'fit': r.get('fit'), 'covered': r.get('covered')}); break
+        else:
+            heads.append(dict(r, _vec=v, alternatives=[]))
+    for h in heads: del h['_vec']
+    return heads
