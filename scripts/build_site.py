@@ -136,14 +136,20 @@ def flow_svg(ct, n_origins=12, n_takers=12, min_bodies=2, all_rows=False):
     H = TOP + RH * max(len(origins), len(takers)) + 10
     ymap = lambda lst, i: TOP + i * RH + RH / 2
     maxn = max(n for _, _, n, _ in edges) or 1
-    def node(x, y, name, count, align):
-        label = name if len(name) <= 34 else name[:33] + '…'
-        tx = x + 10 if align == 'start' else x + BW - 10
-        return (f'<a href="https://github.com/{esc(name)}"><rect x="{x}" y="{y - 13}" width="{BW}" height="26" rx="5" fill="#14100d" stroke="#2b2622"/>'
-                f'<text x="{tx}" y="{y + 4}" text-anchor="{align}" fill="#ebe6e1">{esc(label)}</text>'
-                f'<text x="{x + BW - 10 if align == "start" else x + 10}" y="{y + 4}" text-anchor="{"end" if align == "start" else "start"}" fill="#9a8f86">{count}</text></a>')
-    left = ''.join(node(LX, ymap(origins, i), o, ct['origins'][o] or '', 'start') for i, o in enumerate(origins))
-    right = ''.join(node(RX, ymap(takers, i), t, ct['takers'][t] or '', 'start') for i, t in enumerate(takers))
+    FIRST = ('anthropics/skills', 'anthropics/claude-plugins-official', 'obra/superpowers', 'mattpocock/skills')
+    def node(x, y, name, count, side):
+        label = name if len(name) <= 30 else name[:29] + '…'
+        if side == 'origin':
+            badge, title = ('1st party', '#4fc3b0') if name in FIRST else ('earliest', '#9a8f86')
+        else:
+            n, a = ct['takers'][name], ct['attributed'][name]
+            badge, title = (f'{a / n:.0%} credited', '#4fc3b0' if n and a / n >= .8 else '#f7ab71' if n and a / n >= .3 else '#f17b89') if n else ('mirror', '#4d86cc')
+        return (f'<g class="node" data-node="{esc(name)}" data-side="{side}" tabindex="0" role="button"><rect x="{x}" y="{y - 13}" width="{BW}" height="26" rx="5" fill="#14100d" stroke="#2b2622"/>'
+                f'<text x="{x + 10}" y="{y + 4}" fill="#ebe6e1">{esc(label)}</text>'
+                f'<text x="{x + BW - 10}" y="{y + 4}" text-anchor="end" fill="#ebe6e1" font-weight="600">{count}</text>'
+                f'<text x="{x + BW - 10 - (len(str(count)) * 7 + 10)}" y="{y + 4}" text-anchor="end" fill="{title}" font-size="8">{esc(badge)}</text></g>')
+    left = ''.join(node(LX, ymap(origins, i), o, ct['origins'][o] or '', 'origin') for i, o in enumerate(origins))
+    right = ''.join(node(RX, ymap(takers, i), t, ct['takers'][t] or '', 'taker') for i, t in enumerate(takers))
     paths = []
     for a, b, n, mirror in sorted(edges, key=lambda e: e[2]):
         y1, y2 = ymap(origins, origins.index(a)), ymap(takers, takers.index(b)); x1, x2 = LX + BW, RX
@@ -156,7 +162,22 @@ def flow_svg(ct, n_origins=12, n_takers=12, min_bodies=2, all_rows=False):
                      + (f'<text x="{bx:.0f}" y="{by - 5:.0f}" text-anchor="middle" fill="#c9b8a8" font-size="9">{n}</text>' if n >= 3 else ''))
     hdr = f'<text x="{LX}" y="12" fill="#b39a85" font-size="9" letter-spacing="1.5">ORIGIN · BODIES COPIED FROM IT</text><text x="{RX}" y="12" fill="#b39a85" font-size="9" letter-spacing="1.5">TAKER · BODIES TAKEN</text>'
     note = f'all {len(origins)} origins, {len(takers)} takers and {len(edges)} pairs' if all_rows else f'{len(origins)} origins and {len(takers)} takers by volume; pairs with at least {min_bodies} bodies'
-    return f'<figure class="flow{" full" if all_rows else ""}"><svg viewBox="0 0 {W} {H}" role="img" aria-label="Who copied whom">{hdr}{"".join(paths)}{left}{right}</svg><figcaption><span><i class="sw o"></i>third-party copy, width by bodies</span><span><i class="sw m"></i>same owner, second org</span><span>{note}; hover a line for the count</span></figcaption></figure>'
+    return f'<figure class="flow{" full" if all_rows else ""}"><svg viewBox="0 0 {W} {H}" role="img" aria-label="Who copied whom">{hdr}{"".join(paths)}{left}{right}</svg><figcaption><span><i class="sw o"></i>third-party copy, width by bodies</span><span><i class="sw m"></i>same owner, second org</span><span>{note}; hover a line for the count, click a repo for its bodies</span></figcaption></figure>'
+
+
+def clone_details_json(ct, cap=60):
+    """Per repo: bodies it sourced (with takers and credit) and bodies it took (with origin and credit). Capped per list."""
+    out = {}
+    for g, c in ct['third'] + [(g, c) for g, c in ct['mirror']]:
+        mirror = owner(c['repo']) == owner(g['origin'])
+        skill = g['skill']
+        o = out.setdefault(g['origin'], {'sourced': [], 'taken': [], 'sourced_n': 0, 'taken_n': 0})
+        o['sourced_n'] += 1
+        if len(o['sourced']) < cap: o['sourced'].append([skill, c['repo'], bool(c['attributed']), mirror])
+        t = out.setdefault(c['repo'], {'sourced': [], 'taken': [], 'sourced_n': 0, 'taken_n': 0})
+        t['taken_n'] += 1
+        if len(t['taken']) < cap: t['taken'].append([skill, g['origin'], bool(c['attributed']), mirror])
+    return json.dumps(out, separators=(',', ':'))
 
 
 def page(corpus, report, clones, risk):
@@ -231,7 +252,7 @@ def page(corpus, report, clones, risk):
 <link rel="canonical" href="{SITE}/"><meta name="theme-color" content="#0c0a09">
 <meta property="og:title" content="Which skills are worth installing?"><meta property="og:description" content="{esc(desc)}"><meta property="og:url" content="{SITE}/"><meta property="og:image" content="{SITE}/og.png"><meta property="og:type" content="website">
 <meta name="twitter:card" content="summary_large_image"><meta name="twitter:title" content="whichskills.dev"><meta name="twitter:description" content="{esc(desc)}"><meta name="twitter:image" content="{SITE}/og.png">
-<link rel="icon" href="/favicon.svg"><link rel="stylesheet" href="/css/style.css?v=5"><script defer src="/js/main.js?v=2"></script>
+<link rel="icon" href="/favicon.svg"><link rel="stylesheet" href="/css/style.css?v=6"><script defer src="/js/main.js?v=3"></script>
 <script defer src="https://wave.21nauts.com/script.js" data-website-id="ce023ab7-f50a-4ff0-ae87-e8909d6b257f"></script>
 <script type="application/ld+json">{dataset_ld}</script><script type="application/ld+json">{faq_ld}</script>
 </head><body>
@@ -264,8 +285,9 @@ def page(corpus, report, clones, risk):
 <p>{len(clones):,} skill bodies appear byte-identically in more than one repo: {len(ct['third']) + len(ct['mirror']):,} copy instances in total. {len(ct['mirror']):,} of them are the same owner publishing under a second org. The war is mostly people forking themselves.</p>
 {flow_svg(ct)}
 <details class="expand"><summary>Show every origin, taker and pair in the data</summary>{flow_svg(ct, all_rows=True)}</details>
-<div class="cols"><div><h3>Same-owner mirrors</h3>{table(['Mirror', 'Bodies'], mirror_rows)}</div><div><h3>Third-party copies, by source</h3>{table(['Origin', 'Bodies copied by others', 'Origin label'], origin_rows)}</div></div>
-<div class="cols"><div><h3>Third-party copies, by taker</h3>{table(['Repo', 'Bodies taken', 'Attributed', 'Rate'], taker_rows)}<p class="small">Attributed means the copy's own text names a source, license or upstream repo. Apache 2.0 sources such as anthropics/skills require it.</p></div><div><h3>Largest third-party pairs</h3>{table(['Origin → taker', 'Bodies'], pair_rows)}</div></div></section>
+<p class="small">Badges on the left say how the origin was decided: <b>1st party</b> is the hand-kept registry (anthropics/skills, anthropics/claude-plugins-official, obra/superpowers, mattpocock/skills); <b>earliest</b> means earliest first-commit date in the snapshot, nothing more. Badges on the right are the share of taken bodies whose own text credits a source, license or upstream repo; Apache 2.0 sources such as anthropics/skills require that credit. Dashed blue lines are the same owner publishing under a second org and are not counted as third-party copies.</p>
+<script type="application/json" id="clone-details">{clone_details_json(ct)}</script>
+<dialog id="node-dialog"><div class="dialog-top"><h3 id="nd-title"></h3><button type="button" id="nd-close" aria-label="Close">×</button></div><div id="nd-body"></div></dialog></section>
 
 <section id="safety"><div class="eyebrow">SAFETY READ</div><h2>Every body Jev scored 1.5 of 3 or above</h2>
 <p>The first row is a scanner\'s own test case, listed on purpose: it is the clearest example of why a static flag is not a verdict. Pipeline: a static pre-scan over every file a skill ships builds a queue ({len(risk)} unique bodies after deduplication), Jev reads each with its full text and returns a risk distribution, then a person reads the file at the pinned commit. Buckets: {sum(1 for r in risk if round(r['risk']) == 0)} at 0, {sum(1 for r in risk if round(r['risk']) == 1)} at 1, {sum(1 for r in risk if round(r['risk']) == 2)} at 2, {sum(1 for r in risk if round(r['risk']) == 3)} at 3. {tokens / 1e6:.1f}M tokens, one pass.</p>
@@ -312,7 +334,7 @@ def main():
     for n in ('report', 'clones', 'jev-risk', 'corpus'):
         (out / 'data' / f'{n}.json').write_text((Path(a.corpus) / f'{n}.json').read_text())
     for name, (title, body) in LEGAL.items():
-        (out / name).write_text(f'<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>{title} — whichskills.dev</title><meta name="robots" content="noindex"><link rel="stylesheet" href="/css/style.css?v=5"></head><body><header class="nav"><a class="brand" href="/"><span class="mark">w×</span> whichskills<span class="tld">.dev</span></a></header><main><section><h1>{title}</h1>{body}</section></main></body></html>')
+        (out / name).write_text(f'<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>{title} — whichskills.dev</title><meta name="robots" content="noindex"><link rel="stylesheet" href="/css/style.css?v=6"></head><body><header class="nav"><a class="brand" href="/"><span class="mark">w×</span> whichskills<span class="tld">.dev</span></a></header><main><section><h1>{title}</h1>{body}</section></main></body></html>')
     (out / 'robots.txt').write_text(f'User-agent: *\nAllow: /\nSitemap: {SITE}/sitemap.xml\n')
     (out / 'sitemap.xml').write_text(f'<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"><url><loc>{SITE}/</loc><lastmod>{SNAPSHOT}</lastmod></url></urlset>\n')
     (out / 'CNAME').write_text('whichskills.dev\n'); (out / '.nojekyll').write_text('')
