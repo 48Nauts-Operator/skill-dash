@@ -16,7 +16,7 @@ from skills import load_skills  # noqa: E402
 
 QUERIES = ['claude skills', 'claude code skills', 'claude code plugin', 'agent skills SKILL.md', 'codex skills', 'anthropic skills']
 TOPICS = ['claude-skills', 'claude-code-skills', 'claude-code', 'agent-skills', 'claude-code-plugin', 'claude-plugins', 'codex-skills']
-SEVERITY = {'injection': 5, 'exfiltration': 5, 'hidden_text': 4, 'homoglyph': 4, 'obfuscation': 3, 'shell_pipe': 3, 'runtime_fetch': 3,
+SEVERITY = {'injection': 5, 'exfiltration': 5, 'hidden_text': 4, 'homoglyph': 4, 'obfuscation': 3, 'shell_pipe': 3, 'runtime_fetch': 1,
             'auto_run_hook': 3, 'self_modifying': 3, 'credentials': 2, 'destructive': 2, 'elevated': 1, 'unpinned_deps': 1, 'mcp_server': 1}
 FIELDS = 'fullName,stargazersCount,url,updatedAt,description,isFork,license'
 
