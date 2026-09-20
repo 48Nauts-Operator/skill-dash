@@ -26,6 +26,7 @@ class Store:
                 at TEXT NOT NULL, result TEXT, error TEXT);
               CREATE TABLE IF NOT EXISTS decisions(id INTEGER PRIMARY KEY, skill_id TEXT NOT NULL,
                 at TEXT NOT NULL, previous TEXT, decision TEXT NOT NULL);
+              CREATE TABLE IF NOT EXISTS rec_decisions(key TEXT PRIMARY KEY, data TEXT NOT NULL);
               CREATE TABLE IF NOT EXISTS cache(path TEXT PRIMARY KEY, key TEXT NOT NULL,
                 mtime REAL NOT NULL, size INTEGER NOT NULL, data TEXT NOT NULL);
             ''')
@@ -93,6 +94,15 @@ class Store:
     def runs(self):
         with self.db() as db:
             return [json.loads(r[0]) for r in db.execute('SELECT data FROM runs ORDER BY id DESC LIMIT 50')]
+
+    def rec_decide(self, key, data):
+        with self.db() as db:
+            if data is None: db.execute('DELETE FROM rec_decisions WHERE key=?', (key,))
+            else: db.execute('INSERT OR REPLACE INTO rec_decisions(key,data) VALUES(?,?)', (key, json.dumps(data)))
+
+    def rec_decisions(self):
+        with self.db() as db:
+            return {r['key']: json.loads(r['data']) for r in db.execute('SELECT key,data FROM rec_decisions')}
 
     def cache_get(self, path, key, mtime, size):
         with self.db() as db:

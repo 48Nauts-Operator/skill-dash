@@ -151,8 +151,27 @@ class Application:
         p = self.data_dir / 'recommend.json'
         if not p.exists(): return None
         out = json.loads(p.read_text())
+        dec = self.store.rec_decisions()
+        rejected = {k for k, v in dec.items() if v.get('decision') == 'rejected'}
+        out['results'] = [r for r in out['results'] if recommend.rec_key(r) not in rejected]
         out['clusters'] = recommend.cluster(out['results'])  # same job once, alternatives underneath
+        for h in out['clusters']:
+            h['decision'] = dec.get(recommend.rec_key(h), {}).get('decision')
+            h['alternatives'] = [a for a in h['alternatives'] if f"{a['r']}|{a['p']}" not in rejected]
+        out['decisions'] = dec
+        q = recommend.QUEUE_DIR / 'queue.json'
+        out['queued'] = len([i for i in json.loads(q.read_text()) if i['status'] == 'queued']) if q.exists() else 0
+        out['queue_path'] = str(recommend.QUEUE_DIR / 'queue.md')
         return out
+
+    def rec_decide(self, data):
+        r = {k: data.get(k, '') for k in ('r', 'p', 'n', 'c')}
+        decision = data.get('decision')
+        if decision not in ('accepted', 'rejected', None, ''): raise ValueError('Decision must be accepted, rejected or empty')
+        if not (isinstance(r['r'], str) and isinstance(r['p'], str) and r['r'] and r['p']): raise ValueError('Missing skill reference')
+        key = recommend.rec_key(r)
+        self.store.rec_decide(key, {'decision': decision, 'name': r['n'], 'commit': r['c'], 'at': stamp()} if decision else None)
+        return {'queued': recommend.enqueue(r, decision or 'cleared')}
 
     def state(self):
         with self.lock:
@@ -296,6 +315,7 @@ def handler(app, port):
                 if self.path == '/api/control': app.control(data.get('action'))
                 elif self.path == '/api/decide': app.store.decide(data.get('id', ''), data.get('decision', ''), data.get('note', ''))
                 elif self.path == '/api/recommend': app.start_recommend(data)
+                elif self.path == '/api/recommend/decide': return self.send(200, app.rec_decide(data))
                 elif self.path == '/api/rescan': app.rescan()
                 elif self.path == '/api/overlap': app.run_overlap()
                 else: return self.send(404, {'error': 'Not found'})
