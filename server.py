@@ -128,13 +128,13 @@ class Application:
             if self.rec.get('status') == 'running': raise ValueError('A search is already running')
             if self.scan.get('status') == 'running': raise ValueError('Evidence scan still running; wait a moment')
             self.rec = {'status': 'running', 'done': 0, 'total': k, 'stage': 'profile', 'started_at': stamp(), 'with_prompts': bool(payload.get('with_prompts'))}
-        threading.Thread(target=self._recommend, args=(bool(payload.get('with_prompts')), k), daemon=True).start()
+        threading.Thread(target=self._recommend, args=(bool(payload.get('with_prompts')), k, bool(payload.get('include_flagged'))), daemon=True).start()
 
-    def _recommend(self, with_prompts, k):
+    def _recommend(self, with_prompts, k, include_flagged=False):
         def progress(done, total, stage):
             with self.lock: self.rec.update(done=done, total=total, stage=stage)
         try:
-            out = recommend.run(self, with_prompts=with_prompts, k=k, progress=progress)
+            out = recommend.run(self, with_prompts=with_prompts, k=k, progress=progress, include_flagged=include_flagged)
             out['finished_at'] = stamp()
             (self.data_dir / 'recommend.json').write_text(json.dumps(out))
             with self.lock: self.rec = {'status': 'done', 'finished_at': out['finished_at'], 'candidates': out['candidates'], 'tokens': out['tokens']}

@@ -9,7 +9,8 @@ from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
 from engine import POLICY, judge
-from skills import PROJECTS
+from skills import PROJECTS, risk_flags
+HIGH = ('injection', 'exfiltration', 'hidden_text', 'homoglyph', 'shell_pipe', 'obfuscation')
 
 INDEX_URL = 'https://whichskills.dev/data/skills-index.json'
 UA = {'User-Agent': 'skill-dash/1.0 (+https://whichskills.dev)'}  # Cloudflare rejects the default Python agent
@@ -78,10 +79,16 @@ def candidates(rows, own_skills, prof, k=200):
                 s += math.log1p(w) * c[t] * math.log((n + 1) / (df[t] + 1))
         return s / math.sqrt(len(d) + 1)
     ranked = sorted(zip(pool, docs), key=lambda x: -score(x[1]))
-    out, per_repo = [], Counter()
-    for r, _ in ranked:  # ponytail: cap per repo so one 7,000-skill aggregator cannot fill the whole list
-        if per_repo[r['r']] >= 8: continue
-        per_repo[r['r']] += 1; out.append(r)
+    own_docs = [(o['name'], set(toks(o['name'].replace('-', ' ').replace(':', ' ') + ' ' + o['description']))) for o in prof['own_skills']]
+    out, per_repo, seen_names = [], Counter(), set()
+    for r, d in ranked:  # ponytail: cap per repo so one 7,000-skill aggregator cannot fill the whole list; one row per repo+name
+        if per_repo[r['r']] >= 8 or (r['r'], r['n']) in seen_names: continue
+        per_repo[r['r']] += 1; seen_names.add((r['r'], r['n']))
+        c = Counter(d)
+        r = dict(r, matched=[t for t, _ in sorted(((t, math.log1p(q[t]) * c[t] * math.log((n + 1) / (df[t] + 1))) for t in c if t in q), key=lambda x: -x[1])[:6]])
+        ds = set(d); best = max(own_docs, key=lambda od: len(ds & od[1]) / (len(ds | od[1]) or 1), default=None)
+        if best: r['closest_own'] = best[0]
+        out.append(r)
         if len(out) >= k: break
     return out, len(pool), own_hashes
 
@@ -97,7 +104,7 @@ def fetch_body(r, cap=8000):
         return ''
 
 
-def run(app, with_prompts=False, k=200, workers=4, progress=None):
+def run(app, with_prompts=False, k=200, workers=4, progress=None, include_flagged=False):
     """Full pass. progress(done, total, stage) is called as it goes. Returns the result rows sorted by fit."""
     from engine import environment
     skills = app.store.skills()
@@ -115,7 +122,11 @@ def run(app, with_prompts=False, k=200, workers=4, progress=None):
         h = hashlib.sha256(re.sub(r'\s+', ' ', b).strip().lower().encode()).hexdigest()[:16]
         if h in own_hashes: continue
         if h in seen: seen[h]['dupes'] += 1; continue  # same body again, inside a repo or across the cut
-        seen[h] = dict(r, body=b, dupes=0); deduped.append(seen[h])
+        flags, _ = risk_flags({'SKILL.md': b})  # the same static pre-scan, on the file we are about to recommend
+        classes = sorted({f['flag'] for f in flags})
+        if any(c in HIGH for c in classes): continue
+        if classes and not include_flagged: continue
+        seen[h] = dict(r, body=b, dupes=0, flags=classes); deduped.append(seen[h])
     cands = deduped
     results, done = [], 0
     def one(r):
@@ -136,4 +147,4 @@ def run(app, with_prompts=False, k=200, workers=4, progress=None):
     results.sort(key=lambda r: (-(r.get('gap') or -1), -(r.get('fit') or 0)))
     tokens = sum(v for r in results for kk, v in (r.get('usage') or {}).items() if kk.endswith('tokens') and isinstance(v, int))
     return {'results': [{kk: v for kk, v in r.items() if kk not in ('body', 'usage')} for r in results], 'pool': pool_size, 'candidates': len(cands),
-            'with_prompts': with_prompts, 'tokens': tokens, 'profile_summary': {'own_skills': len(own), 'most_used': prof['most_used'], 'requests': len(prof.get('recent_requests', []))}}
+            'with_prompts': with_prompts, 'include_flagged': include_flagged, 'tokens': tokens, 'profile_summary': {'own_skills': len(own), 'most_used': prof['most_used'], 'requests': len(prof.get('recent_requests', []))}}
