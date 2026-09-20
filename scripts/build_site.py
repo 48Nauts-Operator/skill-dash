@@ -21,7 +21,7 @@ SAME_OWNER = {'composio-community': 'ComposioHQ'}
 PCT_COPIES = None
 # Human read of every body Jev scored 1.5 or above. Category and one sentence, written after reading the file at the pinned commit.
 HUMAN_READ = {
-    'NVIDIA/SkillSpector': ('test fixture with live payload', 'A deliberately poisoned SKILL.md inside a scanner\'s test suite: hidden system comment, homoglyph name, an instruction to post file contents to an external host. Not malicious as a repo; a live payload if a tool ingests the whole tree.'),
+    'NVIDIA/SkillSpector': ('test fixture, own scanner', 'NVIDIA\'s own skill scanner ships this SKILL.md under tests/fixtures as the example it is built to catch: hidden system comment, homoglyph name, an instruction to post file contents to an external host. It is a test case, not an incident. Listed because any tool that ingests a whole repo as skills would pick it up, and because our pipeline scores it exactly as intended.'),
     'SnailSploit/Claude-Red': ('dual-use by design', 'Offensive-security playbooks that say so in their own descriptions. Injection lines are example payloads inside phishing and XSS sections, not instructions aimed at the installing user.'),
     'NousResearch/hermes-agent': ('dual-use, intent stated', 'A jailbreak skill for bypassing safety filters on other vendors\' models. Stated in its description. A policy matter for model vendors, not a risk to the person installing it.'),
     'kubesphere/kubesphere': ('false positive', 'Bearer tokens in documented API calls to the user\'s own KubeSphere instance.'),
@@ -87,6 +87,75 @@ def clone_tables(clones):
     mirrors = collections.Counter((g['origin'], c['repo']) for g, c in mirror)
     return {'third': third, 'mirror': mirror, 'origins': origins, 'takers': takers, 'attributed': attributed, 'pairs': pairs, 'mirrors': mirrors}
 
+AXES = [('copied', 'Copied', 'byte-identical bodies taken from another owner, per skill'),
+        ('mirrored', 'Mirrored', 'bodies shared with the owner\'s own second org, per skill'),
+        ('sourced', 'Sourced', 'bodies other repos took from here, per skill'),
+        ('flagged', 'Flagged', 'rows with any static flag, per row'),
+        ('risk', 'Risk', 'highest Jev risk score of its judged bodies, of 3'),
+        ('hooks', 'Hooks', 'hook commands that run without user action, per manifest'),
+        ('templated', 'Templated', 'share of skills sharing a description prefix with another')]
+
+
+def fingerprint(r, ct, max_risk):
+    n = max(r['skills'], 1)
+    origins = sum(1 for g, _ in ct['third'] if g['origin'] == r['repo'])
+    taken = sum(1 for _, c in ct['third'] if c['repo'] == r['repo'])
+    mirrored = sum(1 for _, c in ct['mirror'] if c['repo'] == r['repo'])
+    return {'copied': min(1, taken / n), 'mirrored': min(1, mirrored / n), 'sourced': min(1, origins / n),
+            'flagged': r['flagged_rows'] / max(r['skills'] + r['manifests'], 1), 'risk': max_risk.get(r['repo'], 0) / 3,
+            'hooks': min(1, r['flags'].get('auto_run_hook', 0) / max(r['manifests'], 1)), 'templated': r['template_ratio']}
+
+
+def radar_svg(vals, median, title, sub):
+    import math
+    n = len(AXES); R, cx, cy = 52, 120, 90
+    ang = lambda i: -math.pi / 2 + i * 2 * math.pi / n
+    pt = lambda i, v: (cx + math.cos(ang(i)) * R * v, cy + math.sin(ang(i)) * R * v)
+    ring = lambda v: '<polygon points="' + ' '.join(f'{pt(i, v)[0]:.1f},{pt(i, v)[1]:.1f}' for i in range(n)) + '" fill="none" stroke="#2b2622"/>'
+    DASH = ' stroke-dasharray="4 3"'
+    poly = lambda d, c, dash: '<polygon points="' + ' '.join(f'{pt(i, d[k])[0]:.1f},{pt(i, d[k])[1]:.1f}' for i, (k, _, _) in enumerate(AXES)) + f'" fill="{c}" fill-opacity="{0 if dash else .16}" stroke="{c}" stroke-width="2"{DASH if dash else ""}/>'
+    dots = ''.join(f'<circle cx="{pt(i, vals[k])[0]:.1f}" cy="{pt(i, vals[k])[1]:.1f}" r="3.5" fill="#d9742c" stroke="#0c0a09" stroke-width="2"><title>{esc(lbl)}: {vals[k]:.2f} · median {median[k]:.2f}</title></circle>' for i, (k, lbl, _) in enumerate(AXES))
+    labels = ''.join(f'<text x="{pt(i, 1.3)[0]:.1f}" y="{pt(i, 1.3)[1]:.1f}" text-anchor="{"middle" if abs(math.cos(ang(i))) < .2 else "start" if math.cos(ang(i)) > 0 else "end"}" dominant-baseline="middle">{esc(lbl.upper())}</text>' for i, (k, lbl, _) in enumerate(AXES))
+    spokes = ''.join(f'<line x1="{cx}" y1="{cy}" x2="{pt(i, 1)[0]:.1f}" y2="{pt(i, 1)[1]:.1f}" stroke="#2b2622"/>' for i in range(n))
+    return f'<figure class="radar"><svg viewBox="0 0 240 180" role="img" aria-label="Fingerprint of {esc(title)}">{ring(.5)}{ring(1)}{spokes}{poly(median, "#4d86cc", True)}{poly(vals, "#d9742c", False)}{dots}{labels}</svg><figcaption><b>{esc(title)}</b><span>{esc(sub)}</span></figcaption></figure>'
+
+
+def flow_svg(ct, n_origins=9, n_takers=9):
+    """Who copied whom: origins left, takers right, one line per pair, width by bodies. Same-owner mirrors dashed blue."""
+    import math
+    pairs = dict(ct['pairs']); mirrors = ct['mirrors']
+    origins = [o for o, _ in ct['origins'].most_common(n_origins)]
+    takers = [t for t, _ in ct['takers'].most_common(n_takers)]
+    for (a, b), n in mirrors.most_common(2):  # the big self-mirrors belong in the picture, labelled as such
+        if a not in origins: origins.append(a)
+        if b not in takers: takers.append(b)
+    edges = [(a, b, n, False) for (a, b), n in pairs.items() if a in origins and b in takers] + [(a, b, n, True) for (a, b), n in mirrors.items() if a in origins and b in takers]
+    edges = [e for e in edges if e[2] >= 2 or e[3]]
+    W, LX, RX, BW, RH, TOP = 980, 12, 700, 268, 34, 22
+    H = TOP + RH * max(len(origins), len(takers)) + 10
+    ymap = lambda lst, i: TOP + i * RH + RH / 2
+    maxn = max(n for _, _, n, _ in edges) or 1
+    def node(x, y, name, count, align):
+        label = name if len(name) <= 34 else name[:33] + '…'
+        tx = x + 10 if align == 'start' else x + BW - 10
+        return (f'<a href="https://github.com/{esc(name)}"><rect x="{x}" y="{y - 13}" width="{BW}" height="26" rx="5" fill="#14100d" stroke="#2b2622"/>'
+                f'<text x="{tx}" y="{y + 4}" text-anchor="{align}" fill="#ebe6e1">{esc(label)}</text>'
+                f'<text x="{x + BW - 10 if align == "start" else x + 10}" y="{y + 4}" text-anchor="{"end" if align == "start" else "start"}" fill="#9a8f86">{count}</text></a>')
+    left = ''.join(node(LX, ymap(origins, i), o, ct['origins'][o] or '', 'start') for i, o in enumerate(origins))
+    right = ''.join(node(RX, ymap(takers, i), t, ct['takers'][t] or '', 'start') for i, t in enumerate(takers))
+    paths = []
+    for a, b, n, mirror in sorted(edges, key=lambda e: e[2]):
+        y1, y2 = ymap(origins, origins.index(a)), ymap(takers, takers.index(b)); x1, x2 = LX + BW, RX
+        w = 1 + 7 * math.log1p(n) / math.log1p(maxn)
+        color, dash = ('#4d86cc', ' stroke-dasharray="6 4"') if mirror else ('#d9742c', '')
+        t, mx = 0.3, (x1 + x2) / 2  # label a third of the way along the curve, where lines from one origin have already fanned apart
+        bx = (1 - t) ** 3 * x1 + 3 * (1 - t) ** 2 * t * mx + 3 * (1 - t) * t ** 2 * mx + t ** 3 * x2
+        by = (1 - t) ** 3 * y1 + 3 * (1 - t) ** 2 * t * y1 + 3 * (1 - t) * t ** 2 * y2 + t ** 3 * y2
+        paths.append(f'<path d="M{x1},{y1} C{(x1 + x2) / 2},{y1} {(x1 + x2) / 2},{y2} {x2},{y2}" fill="none" stroke="{color}" stroke-opacity=".75" stroke-width="{w:.1f}"{dash}><title>{esc(a)} → {esc(b)}: {n} byte-identical bodies{" (same owner)" if mirror else ""}</title></path>'
+                     + (f'<text x="{bx:.0f}" y="{by - 5:.0f}" text-anchor="middle" fill="#c9b8a8" font-size="9">{n}</text>' if n >= 3 else ''))
+    hdr = f'<text x="{LX}" y="12" fill="#b39a85" font-size="9" letter-spacing="1.5">ORIGIN · BODIES COPIED FROM IT</text><text x="{RX}" y="12" fill="#b39a85" font-size="9" letter-spacing="1.5">TAKER · BODIES TAKEN</text>'
+    return f'<figure class="flow"><svg viewBox="0 0 {W} {H}" role="img" aria-label="Who copied whom">{hdr}{"".join(paths)}{left}{right}</svg><figcaption><span><i class="sw o"></i>third-party copy, width by bodies</span><span><i class="sw m"></i>same owner, second org</span><span>pairs with at least two bodies shown; hover a line for the count</span></figcaption></figure>'
+
 
 def page(corpus, report, clones, risk):
     ct = clone_tables(clones)
@@ -132,7 +201,7 @@ def page(corpus, report, clones, risk):
         more = f' <small>+{len(r["locations"]) - 1} identical</small>' if len(r['locations']) > 1 else ''
         name = l['id'].rsplit('/', 1)[-1] if not l['id'].endswith('/@plugin') else 'plugin manifest'
         safety_rows.append((f'<a href="https://github.com/{esc(repo)}">{esc(repo)}</a>', f'<a href="{esc(gh_link(repo, commit, l["id"]))}"><code>{esc(name)}</code></a>{more}',
-                            f'<b>{r["risk"]:.2f}</b> <small>conf {r["risk_conf"]:.2f}</small>', esc(r['kind']), f'<span class="cat">{esc(cat)}</span>', esc(note)))
+                            f'<b>{r["risk"]:.2f}</b> <small>conf {r["risk_conf"]:.2f}</small>', esc(r['kind']), f'<span class="cat {"c-override" if "override" in cat else "c-muted" if ("fixture" in cat or "false" in cat) else "c-dual"}">{esc(cat)}</span>', esc(note)))
 
     repo_rows = []
     for r in sorted(report, key=lambda r: -(r['stars'] or 0)):
@@ -140,6 +209,12 @@ def page(corpus, report, clones, risk):
         repo_rows.append((f'<a href="https://github.com/{esc(r["repo"])}/tree/{esc(c.get("commit", ""))}">{esc(r["repo"])}</a>', r['stars'] or 0, r['skills'], r['manifests'],
                           copies_taken[r['repo']], mirrored[r['repo']], r['flagged_rows'], f"{max_risk[r['repo']]:.2f}" if r['repo'] in max_risk else '—', esc(flags)))
 
+    import statistics
+    prints = {r['repo']: fingerprint(r, ct, max_risk) for r in report}
+    median = {k: statistics.median(p[k] for p in prints.values()) for k, _, _ in AXES}
+    top = sorted(report, key=lambda r: -(r['stars'] or 0))[:12]
+    radars = ''.join(radar_svg(prints[r['repo']], median, r['repo'], f"{r['stars'] or 0:,} stars · {r['skills']:,} skills") for r in top)
+    axes_help = ''.join(f'<li><b>{esc(l)}</b> {esc(h)}.</li>' for _, l, h in AXES)
     questions = ''.join(f'<details><summary><code>{esc(k)}</code> · {esc(v["type"])}</summary><p>{esc(v["instructions"].replace(POLICY, ""))}</p><pre>{esc(json.dumps(v["criteria"], indent=1, ensure_ascii=False))}</pre></details>' for k, v in RISK_QUESTIONS.items())
     weights = ', '.join(f'{k} {v}' for k, v in sorted(SEVERITY.items(), key=lambda kv: -kv[1]))
     faq_html = ''.join(f'<details class="faq"><summary>{esc(q)}</summary><p>{esc(a)}</p></details>' for q, a in FAQ)
@@ -154,10 +229,10 @@ def page(corpus, report, clones, risk):
 <link rel="canonical" href="{SITE}/"><meta name="theme-color" content="#0c0a09">
 <meta property="og:title" content="Which skills are worth installing?"><meta property="og:description" content="{esc(desc)}"><meta property="og:url" content="{SITE}/"><meta property="og:image" content="{SITE}/og.png"><meta property="og:type" content="website">
 <meta name="twitter:card" content="summary_large_image"><meta name="twitter:title" content="whichskills.dev"><meta name="twitter:description" content="{esc(desc)}"><meta name="twitter:image" content="{SITE}/og.png">
-<link rel="icon" href="/favicon.svg"><link rel="stylesheet" href="/css/style.css?v=1"><script defer src="/js/main.js?v=1"></script>
+<link rel="icon" href="/favicon.svg"><link rel="stylesheet" href="/css/style.css?v=3"><script defer src="/js/main.js?v=2"></script>
 <script type="application/ld+json">{dataset_ld}</script><script type="application/ld+json">{faq_ld}</script>
 </head><body>
-<header class="nav"><a class="brand" href="/"><span class="mark">w×</span> whichskills<span class="tld">.dev</span></a><nav><a href="#findings">Findings</a><a href="#clones">Clones</a><a href="#safety">Safety read</a><a href="#repos">Repos</a><a href="#method">Method</a><a href="https://github.com/48Nauts-Operator/whichskills-website">GitHub</a></nav></header>
+<header class="nav"><a class="brand" href="/"><span class="mark">w×</span> whichskills<span class="tld">.dev</span></a><nav><a href="#findings">Findings</a><a href="#fingerprints">Fingerprints</a><a href="#clones">Clones</a><a href="#safety">Safety read</a><a href="#repos">Repos</a><a href="#method">Method</a><a href="https://github.com/48Nauts-Operator/whichskills-website">GitHub</a></nav></header>
 <main>
 <section class="hero"><div class="eyebrow">AN EXPERIMENT BY 48NAUTS · JUDGED BY JEV · SNAPSHOT {SNAPSHOT}</div>
 <h1>Which skills are worth installing?</h1>
@@ -167,13 +242,19 @@ def page(corpus, report, clones, risk):
 
 <section id="findings"><div class="eyebrow">WHAT WE FOUND</div><h2>Four things the snapshot says</h2><div class="grid">{findings_html}</div></section>
 
+<section id="fingerprints"><div class="eyebrow">FINGERPRINTS</div><h2>The twelve most-starred repos, as shapes</h2>
+<p>Seven traits per repo, each scaled 0 to 1, the repo in orange over the corpus median in dashed blue. A shape is a profile, not a score: an aggregator bulges toward Copies taken, a self-mirror toward Self-mirrored, a security-teaching repo toward Flagged and Max Jev risk, a connector pack toward Templated. Hover a point for the numbers.</p>
+<div class="radars">{radars}</div>
+<ul class="small axes">{axes_help}</ul></section>
+
 <section id="clones"><div class="eyebrow">WAR OF THE SKILL CLONES</div><h2>Who copied whom</h2>
 <p>{len(clones):,} skill bodies appear byte-identically in more than one repo: {len(ct['third']) + len(ct['mirror']):,} copy instances in total. {len(ct['mirror']):,} of them are the same owner publishing under a second org. The war is mostly people forking themselves.</p>
+{flow_svg(ct)}
 <div class="cols"><div><h3>Same-owner mirrors</h3>{table(['Mirror', 'Bodies'], mirror_rows)}</div><div><h3>Third-party copies, by source</h3>{table(['Origin', 'Bodies copied by others', 'Origin label'], origin_rows)}</div></div>
 <div class="cols"><div><h3>Third-party copies, by taker</h3>{table(['Repo', 'Bodies taken', 'Attributed', 'Rate'], taker_rows)}<p class="small">Attributed means the copy's own text names a source, license or upstream repo. Apache 2.0 sources such as anthropics/skills require it.</p></div><div><h3>Largest third-party pairs</h3>{table(['Origin → taker', 'Bodies'], pair_rows)}</div></div></section>
 
 <section id="safety"><div class="eyebrow">SAFETY READ</div><h2>Every body Jev scored 1.5 of 3 or above</h2>
-<p>Pipeline: a static pre-scan over every file a skill ships builds a queue ({len(risk)} unique bodies after deduplication), Jev reads each with its full text and returns a risk distribution, then a person reads the file at the pinned commit. Buckets: {sum(1 for r in risk if round(r['risk']) == 0)} at 0, {sum(1 for r in risk if round(r['risk']) == 1)} at 1, {sum(1 for r in risk if round(r['risk']) == 2)} at 2, {sum(1 for r in risk if round(r['risk']) == 3)} at 3. {tokens / 1e6:.1f}M tokens, one pass.</p>
+<p>The first row is a scanner\'s own test case, listed on purpose: it is the clearest example of why a static flag is not a verdict. Pipeline: a static pre-scan over every file a skill ships builds a queue ({len(risk)} unique bodies after deduplication), Jev reads each with its full text and returns a risk distribution, then a person reads the file at the pinned commit. Buckets: {sum(1 for r in risk if round(r['risk']) == 0)} at 0, {sum(1 for r in risk if round(r['risk']) == 1)} at 1, {sum(1 for r in risk if round(r['risk']) == 2)} at 2, {sum(1 for r in risk if round(r['risk']) == 3)} at 3. {tokens / 1e6:.1f}M tokens, one pass.</p>
 {table(['Repo', 'Body', 'Jev risk', 'Kind', 'On reading', 'Why'], safety_rows, cls='safety')}
 <p class="small">"On reading" is our category after opening the file. Test fixture with live payload: a deliberately malicious example shipped for testing. Dual-use by design: offensive-security teaching material that says so. Autonomy override: text that instructs the agent to act without user confirmation. False positive: the pattern matched ordinary tooling. Nothing in this table is labelled malicious. The three bodies the API rejected as oversized are listed in the data file with their error.</p></section>
 
@@ -217,7 +298,7 @@ def main():
     for n in ('report', 'clones', 'jev-risk', 'corpus'):
         (out / 'data' / f'{n}.json').write_text((Path(a.corpus) / f'{n}.json').read_text())
     for name, (title, body) in LEGAL.items():
-        (out / name).write_text(f'<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>{title} — whichskills.dev</title><meta name="robots" content="noindex"><link rel="stylesheet" href="/css/style.css?v=1"></head><body><header class="nav"><a class="brand" href="/"><span class="mark">w×</span> whichskills<span class="tld">.dev</span></a></header><main><section><h1>{title}</h1>{body}</section></main></body></html>')
+        (out / name).write_text(f'<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>{title} — whichskills.dev</title><meta name="robots" content="noindex"><link rel="stylesheet" href="/css/style.css?v=3"></head><body><header class="nav"><a class="brand" href="/"><span class="mark">w×</span> whichskills<span class="tld">.dev</span></a></header><main><section><h1>{title}</h1>{body}</section></main></body></html>')
     (out / 'robots.txt').write_text(f'User-agent: *\nAllow: /\nSitemap: {SITE}/sitemap.xml\n')
     (out / 'sitemap.xml').write_text(f'<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"><url><loc>{SITE}/</loc><lastmod>{SNAPSHOT}</lastmod></url></urlset>\n')
     (out / 'CNAME').write_text('whichskills.dev\n'); (out / '.nojekyll').write_text('')
