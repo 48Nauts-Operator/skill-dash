@@ -35,7 +35,8 @@ function resultText(a,s) {
 }
 function judgmentChips(s) {
  const answers=s.result?.answers||{};
- return Object.entries(answers).filter(([id])=>!['useful','action'].includes(id)).map(([id,a])=>`<span class="result-chip" title="${esc(s.result.questions?.[id]?.instructions||id)}">${esc(judgmentTitle(id))}: <b>${esc(resultText(a,s))}</b></span>`).join('') || '<span class="muted">—</span>';
+ // risk_kind names the dominant kind even at risk 0; only worth showing once risk is at least "needs a look"
+ return Object.entries(answers).filter(([id])=>!['useful','action'].includes(id)&&!(id==='risk_kind'&&(answers.risk?.score??1)<0.75)).map(([id,a])=>`<span class="result-chip" title="${esc(s.result.questions?.[id]?.instructions||id)}">${esc(judgmentTitle(id))}: <b>${esc(resultText(a,s))}</b></span>`).join('') || '<span class="muted">—</span>';
 }
 function judgmentDetails(pred) {
  return Object.entries(pred.answers||{}).map(([id,a])=>`<div class="judgment"><span>${esc(judgmentTitle(id))} · ${esc(a.type)}</span><strong>${esc(resultText(a,{result:pred}))}</strong>${a.confidence!=null?`<p class="field-help">${Math.round(a.confidence*100)}% confidence in the distribution</p>`:''}<p class="field-help">${esc((pred.questions?.[id]?.instructions||'').replace(data.config.policy||'\u0000',''))}</p>${a.type==='score'?`<p class="field-help">${Object.entries(a.legend).map(([k,v])=>`${esc(k)}: ${esc(v)}`).join('<br>')}</p>`:''}</div>`).join('');
