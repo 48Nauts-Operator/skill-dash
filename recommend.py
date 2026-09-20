@@ -22,6 +22,12 @@ FIT_QUESTIONS = {
                          'Matches a task or stack the profile shows, and does something the user\'s own skills do not.',
                          'Matches a repeated task or a stated rule in the profile, with a concrete procedure the user would run often.']},
     'covered': {'type': 'noul', 'instructions': POLICY + 'Does one of the user\'s own skills (profile.own_skills) already do the same job as this candidate? Yes means installing it would add a twin.'},
+    'basis': {'type': 'choice', 'instructions': POLICY + 'Which part of the profile does this candidate answer most directly?',
+              'criteria': {'rule': 'A rule or convention written in profile.claude_md_excerpt that the user has to follow by hand today.',
+                           'request': 'Something in profile.recent_requests the user actually asked for.',
+                           'extends': 'It extends or completes one of profile.most_used skills.',
+                           'stack': 'The stack, tools or platforms the profile shows the user runs.',
+                           'none': 'No specific part; general relevance only.'}},
 }
 PROFILE_QUESTIONS = {
     'focus': {'type': 'choice', 'instructions': POLICY + 'What does this user\'s work with the agent centre on? Judge from profile: the rules file, the skills they keep and use most, and any recent requests.',
@@ -159,7 +165,8 @@ def run(app, with_prompts=False, k=200, workers=4, progress=None, include_flagge
         except Exception as e:
             return dict(r, error=str(e)[:160])
         a = res['answers']
-        return dict(r, fit=round(a['fit']['score'], 2), fit_conf=round(a['fit']['confidence'], 2), fit_legend=a['fit']['legend'], covered=round(a['covered']['noul'], 2), usage=res['usage'])
+        return dict(r, fit=round(a['fit']['score'], 2), fit_conf=round(a['fit']['confidence'], 2), fit_legend=a['fit']['legend'], covered=round(a['covered']['noul'], 2),
+                    basis=a['basis']['choice'], basis_conf=round(a['basis']['confidence'], 2), usage=res['usage'])
     with ThreadPoolExecutor(max_workers=workers) as pool:
         for res in pool.map(one, cands):
             results.append(res); done += 1
