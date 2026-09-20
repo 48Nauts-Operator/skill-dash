@@ -132,13 +132,13 @@ def flow_svg(ct, n_origins=12, n_takers=12, min_bodies=2, all_rows=False):
         if b not in takers: takers.append(b)
     edges = [(a, b, n, False) for (a, b), n in pairs.items() if a in origins and b in takers] + [(a, b, n, True) for (a, b), n in mirrors.items() if a in origins and b in takers]
     edges = [e for e in edges if all_rows or e[2] >= min_bodies or e[3]]
-    W, LX, RX, BW, RH, TOP = 980, 12, 700, 268, 34, 22
+    W, LX, RX, BW, RH, TOP = 1000, 12, 662, 326, 34, 22
     H = TOP + RH * max(len(origins), len(takers)) + 10
     ymap = lambda lst, i: TOP + i * RH + RH / 2
     maxn = max(n for _, _, n, _ in edges) or 1
     FIRST = ('anthropics/skills', 'anthropics/claude-plugins-official', 'obra/superpowers', 'mattpocock/skills')
     def node(x, y, name, count, side):
-        label = name if len(name) <= 30 else name[:29] + '…'
+        label = name if len(name) <= 25 else name[:24] + '…'
         if side == 'origin':
             badge, title = ('1st party', '#4fc3b0') if name in FIRST else ('earliest', '#9a8f86')
         else:
@@ -147,7 +147,7 @@ def flow_svg(ct, n_origins=12, n_takers=12, min_bodies=2, all_rows=False):
         return (f'<g class="node" data-node="{esc(name)}" data-side="{side}" tabindex="0" role="button"><rect x="{x}" y="{y - 13}" width="{BW}" height="26" rx="5" fill="#14100d" stroke="#2b2622"/>'
                 f'<text x="{x + 10}" y="{y + 4}" fill="#ebe6e1">{esc(label)}</text>'
                 f'<text x="{x + BW - 10}" y="{y + 4}" text-anchor="end" fill="#ebe6e1" font-weight="600">{count}</text>'
-                f'<text x="{x + BW - 10 - (len(str(count)) * 7 + 10)}" y="{y + 4}" text-anchor="end" fill="{title}" font-size="8">{esc(badge)}</text></g>')
+                f'<text x="{x + BW - 10 - (len(str(count)) * 7 + 12)}" y="{y + 4}" text-anchor="end" fill="{title}" font-size="8">{esc(badge)}</text></g>')
     left = ''.join(node(LX, ymap(origins, i), o, ct['origins'][o] or '', 'origin') for i, o in enumerate(origins))
     right = ''.join(node(RX, ymap(takers, i), t, ct['takers'][t] or '', 'taker') for i, t in enumerate(takers))
     paths = []
