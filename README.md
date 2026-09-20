@@ -19,7 +19,7 @@ A user LaunchAgent `ch.naut.skilldash` keeps it running and starts it on login. 
 ## Review any skill repo
 
 ```sh
-python3 server.py --port 3346 --roots ~/path/to/some-skills-repo
+python3 server.py --port 3346 --roots ~/path/to/some-skills-repo [--exclude generated-folder]
 ```
 
 Loads every `SKILL.md` under the roots (hidden dirs and `node_modules` skipped), keyed by path so repeated names stay distinct. Transcript evidence is off (it is not evidence for someone else's tree) and the Judges page defaults to the content-only preset: usefulness on content alone, a duplicate-of question fed by the top three overlap partners, clarity, action. Run the overlap audit from Settings first; it walks the roots recursively and runs in parallel. Each root set gets its own SQLite file under `.data/roots-<hash>/`.

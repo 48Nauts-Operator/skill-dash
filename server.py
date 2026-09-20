@@ -25,8 +25,9 @@ ACTIVE = ('running', 'paused', 'stopping')
 
 
 class Application:
-    def __init__(self, path, key=None, roots=None):
+    def __init__(self, path, key=None, roots=None, exclude=()):
         self.roots = [str(Path(r).expanduser().resolve()) for r in (roots or [])]
+        self.exclude = tuple(exclude)
         self.store = Store(path)
         self.data_dir = Path(path).parent
         self.key = credential() if key is None else key
@@ -43,7 +44,7 @@ class Application:
             if self.scan.get('status') == 'running':
                 raise ValueError('A scan is already running')
             self.scan = {'status': 'running', 'started_at': stamp()}
-        skills = load_skills(self.roots)
+        skills = load_skills(self.roots, self.exclude)
         self.store.sync(skills)
         if self.roots:
             with self.lock:
@@ -95,7 +96,7 @@ class Application:
         merged, errors = {}, []
         for i, root in enumerate(self.roots or [None]):
             out = self.data_dir / f'overlap-{i}.md'
-            cmd = [sys.executable, str(AUDIT)] + (['--dir', root, '--recursive'] if root else []) + ['overlap', '--out', str(out)]
+            cmd = [sys.executable, str(AUDIT)] + (['--dir', root, '--recursive'] + sum((['--exclude', e] for e in self.exclude), []) if root else []) + ['overlap', '--out', str(out)]
             proc = subprocess.Popen(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE, text=True)
             tail = ''
             for chunk in iter(lambda: proc.stderr.read(64), ''):  # audit.py reports "\rN/M requests" on stderr
@@ -271,9 +272,11 @@ if __name__ == '__main__':
     parser.add_argument('--port', type=int, default=3345)
     parser.add_argument('--data', help='SQLite path; defaults per root set under .data/')
     parser.add_argument('--roots', help='comma-separated directories of SKILL.md files to review instead of the live tree')
+    parser.add_argument('--exclude', default='', help='comma-separated folder names to skip under the roots')
     args = parser.parse_args()
     roots = [r for r in (args.roots or '').split(',') if r.strip()]
-    data = args.data or str(ROOT / '.data' / (('roots-' + hashlib.sha256(','.join(sorted(roots)).encode()).hexdigest()[:8]) if roots else '') / 'skills.sqlite').replace('/.data//', '/.data/')
-    app = Application(data, roots=roots)
+    exclude = [e for e in args.exclude.split(',') if e.strip()]
+    data = args.data or str(ROOT / '.data' / (('roots-' + hashlib.sha256(','.join(sorted(roots) + exclude).encode()).hexdigest()[:8]) if roots else '') / 'skills.sqlite').replace('/.data//', '/.data/')
+    app = Application(data, roots=roots, exclude=exclude)
     print(f'Skills × Jev listening on http://localhost:{args.port} (Jev credential: {"available" if app.key else "not configured"})', flush=True)
     ThreadingHTTPServer(('127.0.0.1', args.port), handler(app, args.port)).serve_forever()

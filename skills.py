@@ -137,15 +137,16 @@ def read_skill(path, plugin=None, root=None):
     }
 
 
-def load_skills(roots=None):
-    """Live tree (own + enabled plugins) by default; any directories of SKILL.md files when roots are given."""
+def load_skills(roots=None, exclude=()):
+    """Live tree (own + enabled plugins) by default; any directories of SKILL.md files when roots are given.
+    exclude: path segments to skip under the roots (e.g. a folder of generated connector skills)."""
     if roots:
         skills = []
         for root in roots:
             root = Path(root).expanduser().resolve()
             # hidden dirs such as .gemini/ hold mirrored copies; they are not separate skills
             skills += [read_skill(p, root=root) for p in sorted(root.rglob('SKILL.md'))
-                       if 'node_modules' not in p.parts and not any(part.startswith('.') for part in p.relative_to(root).parts)]
+                       if 'node_modules' not in p.parts and not any(part.startswith('.') or part in exclude for part in p.relative_to(root).parts)]
         return skills
     skills = [read_skill(p) for p in sorted(OWN.glob('*/SKILL.md'))]
     for plugin, root in enabled_plugins():
