@@ -1,12 +1,19 @@
-# Skills × Jev
+# skill-dash
 
-Local dashboard over the Claude skill tree. Same shell as the inbox × jev dashboard, rows are skills instead of emails. It answers one question per skill: keep, rewrite, merge or delete.
+Judge a tree of Claude Code and Codex skills with [Jev](https://typesafe.ai), TypeSafe's typed-judgment model. One row per skill, one question per row: keep, rewrite, merge or delete. Also the pipeline behind [whichskills.dev](https://whichskills.dev), a public census of 18,041 skills from the 200 most-starred repos.
 
-## Open
+Python standard library and SQLite, no dependencies, no build step. Runs on 127.0.0.1 only. Nothing leaves your machine except the Jev calls you choose to make.
 
-http://localhost:3345
+## Quick start
 
-A user LaunchAgent `ch.naut.skilldash` keeps it running and starts it on login. Binds to 127.0.0.1 only.
+```sh
+git clone https://github.com/48Nauts-Operator/skill-dash && cd skill-dash
+export TYPESAFE_API_KEY=...          # or macOS Keychain service xnaut, account plugin/typesafe/TYPESAFE_API_KEY
+python3 server.py --port 3345       # your own ~/.claude/skills tree plus enabled plugins
+python3 server.py --port 3346 --roots ~/some/skills-repo   # any repo of SKILL.md files
+```
+
+Open the port in a browser. Settings runs the overlap audit; Judges edits the questions; the drawer on each row holds the evidence, the Jev distributions, a radar against the tree average and your decision.
 
 ## What it shows
 
@@ -24,11 +31,11 @@ python3 server.py --port 3346 --roots ~/path/to/some-skills-repo [--exclude gene
 
 Loads every `SKILL.md` under the roots (hidden dirs and `node_modules` skipped), keyed by path so repeated names stay distinct. Transcript evidence is off (it is not evidence for someone else's tree) and the Judges page defaults to the content-only preset: usefulness on content alone, a duplicate-of question fed by the top three overlap partners, clarity, action. Run the overlap audit from Settings first; it walks the roots recursively and runs in parallel. Each root set gets its own SQLite file under `.data/roots-<hash>/`.
 
-## Run from source
+## Tests
 
 ```sh
-python3 server.py --port 3345
 python3 -m unittest discover -s tests -v
+NODE_PATH=/path/to/node_modules/with/playwright node tests/screenshot.mjs   # headless smoke against a running server
 ```
 
 Jev credential: `TYPESAFE_API_KEY` or macOS Keychain service `xnaut`, account `plugin/typesafe/TYPESAFE_API_KEY`. Model `jev-1.13.0`, override with `TYPESAFE_MODEL`.
