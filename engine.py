@@ -185,6 +185,16 @@ def validate_answers(data, questions):
     return answers
 
 
+def ask(key, state, questions):
+    """One Jev call over arbitrary state. Used for the profile read; judge() is the per-skill wrapper."""
+    questions = prepare_questions(questions)
+    payload = {'model': os.getenv('TYPESAFE_MODEL', 'jev-1.13.0'), 'state': state, 'questions': questions}
+    req = urllib.request.Request(API, json.dumps(payload).encode(), {'Authorization': 'Bearer ' + key, 'Content-Type': 'application/json'})
+    with urllib.request.urlopen(req, timeout=40) as response:
+        data = json.load(response)
+    return validate_answers(data, questions), data.get('usage', {})
+
+
 def judge(skill, evidence, env, key, questions, overlap=None, extra=None):
     """overlap: list of {'with': name, 'score': float}, strongest first. extra: more top-level state, e.g. a user profile."""
     questions = prepare_questions(questions)

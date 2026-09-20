@@ -8,7 +8,7 @@ from collections import Counter
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
-from engine import POLICY, judge
+from engine import POLICY, judge, ask
 from skills import PROJECTS, risk_flags
 HIGH = ('injection', 'exfiltration', 'hidden_text', 'homoglyph', 'shell_pipe', 'obfuscation')
 
@@ -22,6 +22,22 @@ FIT_QUESTIONS = {
                          'Matches a task or stack the profile shows, and does something the user\'s own skills do not.',
                          'Matches a repeated task or a stated rule in the profile, with a concrete procedure the user would run often.']},
     'covered': {'type': 'noul', 'instructions': POLICY + 'Does one of the user\'s own skills (profile.own_skills) already do the same job as this candidate? Yes means installing it would add a twin.'},
+}
+PROFILE_QUESTIONS = {
+    'focus': {'type': 'choice', 'instructions': POLICY + 'What does this user\'s work with the agent centre on? Judge from profile: the rules file, the skills they keep and use most, and any recent requests.',
+              'criteria': {'software_development': 'Writing and shipping application code: web, mobile, backend, releases, tests.',
+                           'devops_and_infrastructure': 'Servers, deployment, CI, containers, networking, hosting.',
+                           'data_and_research': 'Analysis, research, papers, datasets, experiments.',
+                           'agent_tooling': 'Building skills, prompts, plugins, hooks and automation for AI coding agents themselves.',
+                           'product_and_writing': 'Specs, documentation, product management, writing for people.',
+                           'marketing_and_business': 'Marketing, sales, content, business operations.',
+                           'security': 'Offensive or defensive security work.',
+                           'unclear': 'Not enough signal to say.'}},
+    'practice': {'type': 'score', 'instructions': POLICY + 'How established is this user\'s practice of working with an AI coding agent, judging from profile only?',
+                 'criteria': ['Occasional use. No rules file to speak of, few or no own skills.',
+                              'Regular use. Some conventions written down, a handful of own skills, uneven use.',
+                              'Established. A real rules file, own skills with scripts, repeated workflows the agent follows.',
+                              'Advanced. Many own skills and hooks, documented procedures, evidence of pruning and measurement.']},
 }
 TOKEN = re.compile(r'[a-z][a-z0-9+#.-]{2,}')
 STOP = set('the and for with that this from your you are use when user skill skills use using into over about into can will not any all one two what how run runs file files code'.split())
@@ -111,6 +127,12 @@ def run(app, with_prompts=False, k=200, workers=4, progress=None, include_flagge
     own = [s for s in skills if s['kind'] != 'manifest']
     env = environment(skills)
     prof = profile(env['claude_md_excerpt'], own, app.evidence, with_prompts)
+    try:
+        pa, pu = ask(app.key, {'profile': prof}, PROFILE_QUESTIONS)
+        profile_read = {'focus': pa['focus']['choice'], 'focus_probs': pa['focus']['probabilities'], 'focus_conf': pa['focus']['confidence'],
+                        'practice': pa['practice']['score'], 'practice_legend': pa['practice']['legend'], 'practice_probs': pa['practice']['probabilities']}
+    except Exception as e:
+        profile_read = {'error': str(e)[:120]}
     rows = load_index(app.data_dir)
     cands, pool_size, own_hashes = candidates(rows, own, prof, k)
     if progress: progress(0, len(cands), 'fetching')
@@ -147,7 +169,7 @@ def run(app, with_prompts=False, k=200, workers=4, progress=None, include_flagge
     results.sort(key=lambda r: (-(r.get('gap') or -1), -(r.get('fit') or 0)))
     tokens = sum(v for r in results for kk, v in (r.get('usage') or {}).items() if kk.endswith('tokens') and isinstance(v, int))
     return {'results': [{kk: v for kk, v in r.items() if kk not in ('body', 'usage')} for r in results], 'pool': pool_size, 'candidates': len(cands),
-            'with_prompts': with_prompts, 'include_flagged': include_flagged, 'tokens': tokens, 'profile_summary': {'own_skills': len(own), 'most_used': prof['most_used'], 'requests': len(prof.get('recent_requests', []))}}
+            'with_prompts': with_prompts, 'include_flagged': include_flagged, 'tokens': tokens, 'profile_read': profile_read, 'profile_summary': {'own_skills': len(own), 'most_used': prof['most_used'], 'used_counts': {o['name']: o['invocations'] for o in sorted(prof['own_skills'], key=lambda o: -o['invocations'])[:5] if o['invocations']}, 'requests': len(prof.get('recent_requests', []))}}
 
 
 def cluster(results, threshold=0.35):
