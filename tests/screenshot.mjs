@@ -1,0 +1,30 @@
+// Visual smoke: open the dashboard, open a skill drawer, save a decision, screenshot. Run:
+//   NODE_PATH=~/DevHub_Studio/factory/02-Development/xnaut/node_modules node tests/screenshot.mjs
+import { createRequire } from 'node:module';
+const require = createRequire(import.meta.url);
+const { chromium } = require('playwright');
+const base = process.env.BASE || 'http://localhost:3345';
+const out = process.env.OUT || '.data';
+const browser = await chromium.launch();
+const page = await browser.newPage({ viewport: { width: 1440, height: 1000 } });
+const errors = [];
+page.on('pageerror', e => errors.push('pageerror: ' + e.message));
+page.on('console', m => { if (m.type() === 'error') errors.push('console: ' + m.text()); });
+await page.goto(base + '/#overview');
+await page.waitForFunction(() => document.querySelectorAll('#rows tr').length > 1, null, { timeout: 15000 });
+await page.screenshot({ path: `${out}/shot-overview.png`, fullPage: true });
+await page.click('[data-skill="code-structure"]');
+await page.waitForSelector('#decision-form');
+await page.screenshot({ path: `${out}/shot-drawer.png`, fullPage: false });
+await page.selectOption('#decision-form [name=decision]', 'delete');
+await page.fill('#decision-form [name=note]', 'smoke test, cleared below');
+await page.click('#decision-form button[type=submit]');
+await page.waitForFunction(() => document.querySelector('#toast')?.textContent.includes('Decision saved'), null, { timeout: 8000 });
+await page.keyboard.press('Escape');
+await page.click('[data-view="judges"]');
+await page.waitForSelector('#judgment-cards .judgment-card');
+await page.screenshot({ path: `${out}/shot-judges.png`, fullPage: true });
+const cards = await page.$$eval('#judgment-cards .judgment-card', n => n.length);
+console.log(JSON.stringify({ cards, errors }, null, 1));
+await browser.close();
+if (errors.length) process.exit(1);
