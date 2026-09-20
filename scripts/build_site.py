@@ -199,7 +199,7 @@ def page(corpus, report, clones, risk):
     def stat(n, label):
         return f'<div class="stat"><b>{n}</b><span>{label}</span></div>'
 
-    def table(headers, rows, cls='', sortable=False):
+    def table(headers, rows, cls='', sortable=True):
         th = ''.join(f'<th{" data-sort" if sortable else ""}>{h}</th>' for h in headers)
         tr = ''.join('<tr>' + ''.join(f'<td>{c}</td>' for c in r) + '</tr>' for r in rows)
         return f'<div class="table-wrap"><table class="{cls}"><thead><tr>{th}</tr></thead><tbody>{tr}</tbody></table></div>'
@@ -229,8 +229,8 @@ def page(corpus, report, clones, risk):
     repo_rows = []
     for r in sorted(report, key=lambda r: -(r['stars'] or 0)):
         c = corpus.get(r['repo'], {}); flags = ', '.join(f'{k} {v}' for k, v in sorted(r['flags'].items(), key=lambda kv: -SEVERITY.get(kv[0], 1) * kv[1])[:3])
-        repo_rows.append((f'<a href="https://github.com/{esc(r["repo"])}/tree/{esc(c.get("commit", ""))}">{esc(r["repo"])}</a>', r['stars'] or 0, r['skills'], r['manifests'],
-                          copies_taken[r['repo']], mirrored[r['repo']], r['flagged_rows'], f"{max_risk[r['repo']]:.2f}" if r['repo'] in max_risk else '—', esc(flags)))
+        repo_rows.append((f'<a href="https://github.com/{esc(r["repo"])}/tree/{esc(c.get("commit", ""))}">{esc(r["repo"])}</a>', f"{r['stars'] or 0:,}", f"{r['skills']:,}", f"{r['manifests']:,}",
+                          f"{copies_taken[r['repo']]:,}", f"{mirrored[r['repo']]:,}", f"{r['flagged_rows']:,}", f"{max_risk[r['repo']]:.2f}" if r['repo'] in max_risk else '—', esc(flags)))
 
     import statistics
     prints = {r['repo']: fingerprint(r, ct, max_risk) for r in report}
@@ -252,7 +252,7 @@ def page(corpus, report, clones, risk):
 <link rel="canonical" href="{SITE}/"><meta name="theme-color" content="#0c0a09">
 <meta property="og:title" content="Which skills are worth installing?"><meta property="og:description" content="{esc(desc)}"><meta property="og:url" content="{SITE}/"><meta property="og:image" content="{SITE}/og.png"><meta property="og:type" content="website">
 <meta name="twitter:card" content="summary_large_image"><meta name="twitter:title" content="whichskills.dev"><meta name="twitter:description" content="{esc(desc)}"><meta name="twitter:image" content="{SITE}/og.png">
-<link rel="icon" href="/favicon.svg"><link rel="stylesheet" href="/css/style.css?v=6"><script defer src="/js/main.js?v=3"></script>
+<link rel="icon" href="/favicon.svg"><link rel="stylesheet" href="/css/style.css?v=7"><script defer src="/js/main.js?v=5"></script>
 <script defer src="https://wave.21nauts.com/script.js" data-website-id="ce023ab7-f50a-4ff0-ae87-e8909d6b257f"></script>
 <script type="application/ld+json">{dataset_ld}</script><script type="application/ld+json">{faq_ld}</script>
 </head><body>
@@ -334,7 +334,7 @@ def main():
     for n in ('report', 'clones', 'jev-risk', 'corpus'):
         (out / 'data' / f'{n}.json').write_text((Path(a.corpus) / f'{n}.json').read_text())
     for name, (title, body) in LEGAL.items():
-        (out / name).write_text(f'<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>{title} · whichskills.dev</title><meta name="robots" content="noindex"><link rel="stylesheet" href="/css/style.css?v=6"></head><body><header class="nav"><a class="brand" href="/"><span class="mark">w×</span> whichskills<span class="tld">.dev</span></a></header><main><section><h1>{title}</h1>{body}</section></main></body></html>')
+        (out / name).write_text(f'<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>{title} · whichskills.dev</title><meta name="robots" content="noindex"><link rel="stylesheet" href="/css/style.css?v=7"></head><body><header class="nav"><a class="brand" href="/"><span class="mark">w×</span> whichskills<span class="tld">.dev</span></a></header><main><section><h1>{title}</h1>{body}</section></main></body></html>')
     (out / 'robots.txt').write_text(f'User-agent: *\nAllow: /\nSitemap: {SITE}/sitemap.xml\n')
     (out / 'sitemap.xml').write_text(f'<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"><url><loc>{SITE}/</loc><lastmod>{SNAPSHOT}</lastmod></url></urlset>\n')
     (out / 'CNAME').write_text('whichskills.dev\n'); (out / '.nojekyll').write_text('')
