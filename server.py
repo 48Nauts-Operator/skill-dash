@@ -4,6 +4,7 @@ import argparse
 import json
 import mimetypes
 import hashlib
+import re
 import secrets
 import subprocess
 import sys
@@ -14,7 +15,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import urlparse, parse_qs
 
-from engine import QUESTIONS, CONTENT_QUESTIONS, PRESETS, POLICY, prepare_questions, judge, credential, environment
+from engine import QUESTIONS, CONTENT_QUESTIONS, RISK_QUESTIONS, PRESETS, POLICY, prepare_questions, judge, credential, environment
 from skills import load_skills, evidence
 from store import Store, DECISIONS, stamp
 
@@ -62,7 +63,12 @@ class Application:
     def overlap_pairs(self):
         p = self.data_dir / 'overlap.json'
         try:
-            return json.loads(p.read_text()) if p.exists() else {}
+            if p.exists():
+                return json.loads(p.read_text())
+            merged = {}  # a run that finished after a server restart left only per-root files
+            for part in sorted(self.data_dir.glob('overlap-*.json')):
+                merged.update(json.loads(part.read_text()))
+            return merged
         except ValueError:
             return {}
 
@@ -90,12 +96,20 @@ class Application:
         for i, root in enumerate(self.roots or [None]):
             out = self.data_dir / f'overlap-{i}.md'
             cmd = [sys.executable, str(AUDIT)] + (['--dir', root, '--recursive'] if root else []) + ['overlap', '--out', str(out)]
-            r = subprocess.run(cmd, capture_output=True, text=True, timeout=7200)
+            proc = subprocess.Popen(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE, text=True)
+            tail = ''
+            for chunk in iter(lambda: proc.stderr.read(64), ''):  # audit.py reports "\rN/M requests" on stderr
+                tail = (tail + chunk)[-4000:]
+                m = re.findall(r'(\d+)/(\d+) requests', tail)
+                if m:
+                    with self.lock:
+                        self.overlap.update(progress=f'{m[-1][0]}/{m[-1][1]}', root=i + 1, roots=len(self.roots or [None]))
+            proc.wait()
             j = out.with_suffix('.json')
-            if r.returncode == 0 and j.exists():
+            if proc.returncode == 0 and j.exists():
                 merged.update(json.loads(j.read_text()))
             else:
-                errors.append((r.stderr or 'audit failed')[-200:])
+                errors.append(tail.strip().splitlines()[-1][-200:] if tail.strip() else 'audit failed')
         if merged:
             (self.data_dir / 'overlap.json').write_text(json.dumps(merged, indent=1))
         with self.lock:
@@ -106,12 +120,13 @@ class Application:
             pairs = self.overlap_pairs()
             top = self.top_overlap(pairs)
             okey = (lambda s: s['id']) if self.roots else (lambda s: s['name'])
-            skills = [{**s, 'evidence': self.evidence.get(s['id'], None), 'overlap': (top.get(okey(s)) or [None])[0],
-                       'overlaps': top.get(okey(s), [])} for s in self.store.skills()]
+            heavy = ('body_full', 'files_text')
+            skills = [{**{k: v for k, v in s.items() if k not in heavy}, 'evidence': self.evidence.get(s['id'], None),
+                       'overlap': (top.get(okey(s)) or [None])[0], 'overlaps': top.get(okey(s), [])} for s in self.store.skills()]
             return {'skills': skills, 'runs': self.store.runs(), 'job': dict(self.job) if self.job else None,
                     'scan': dict(self.scan), 'overlap': {**self.overlap, 'pairs': len(pairs)}, 'roots': self.roots,
                     'config': {'jev_available': bool(self.key), 'questions': CONTENT_QUESTIONS if self.roots else QUESTIONS,
-                               'usage_questions': QUESTIONS, 'content_questions': CONTENT_QUESTIONS, 'presets': PRESETS,
+                               'usage_questions': QUESTIONS, 'content_questions': CONTENT_QUESTIONS, 'risk_questions': RISK_QUESTIONS, 'presets': PRESETS,
                                'policy': POLICY, 'max_workers': 6, 'decisions': list(DECISIONS)}}
 
     # --- judgments -------------------------------------------------------------

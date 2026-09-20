@@ -17,6 +17,20 @@ GENERIC = {'index.js', 'main.py', 'server.py', 'app.js', 'build.sh', 'run.sh', '
 INVOKE = re.compile(r'"name":"Skill","input":\{"skill":"([^"]+)"')
 SLASH = re.compile(r'<command-name>/([A-Za-z0-9:_-]+)</command-name>')
 TS = re.compile(r'"timestamp":"([^"]+)"')
+TEXT_SUFFIXES = SCRIPT_SUFFIXES + ('.md', '.json', '.yaml', '.yml', '.toml', '.txt')
+# Static pre-scan: the patterns people get burned by when they install a skill without reading it.
+RISK_PATTERNS = [
+    ('shell_pipe', re.compile(r'(curl|wget)\b[^\n|]*\|\s*(sudo\s+)?(ba|z)?sh\b', re.I)),
+    ('destructive', re.compile(r'rm\s+-rf\s+[~/$]|git\s+push\s+(-f|--force)|--no-verify|mkfs\.|\bdd\s+if=|:\(\)\s*\{', re.I)),
+    ('credentials', re.compile(r'~/\.ssh|id_rsa|id_ed25519|\.aws/credentials|find-generic-password|\.netrc|\.npmrc|GITHUB_TOKEN|OPENAI_API_KEY|ANTHROPIC_API_KEY|\bcat\s+[^\n]*\.env\b', re.I)),
+    ('exfiltration', re.compile(r'(curl|wget|fetch|requests\.post|urlopen)[^\n]{0,120}(https?://(?!localhost|127\.0\.0\.1)[^\s"\')]+)[^\n]{0,80}(-d\s|--data|-F\s|@|POST)|webhook\.site|ngrok|pipedream|requestbin', re.I)),
+    ('obfuscation', re.compile(r'base64\s+(-d|--decode)|\beval\s*\(|\bexec\s*\(|\\x[0-9a-f]{2}\\x[0-9a-f]{2}|atob\(|fromCharCode', re.I)),
+    ('injection', re.compile(r'ignore (all |any )?(previous|prior|above) instructions|do not (tell|inform|mention)( this)? to the user|without (asking|telling|informing) the user|never mention|keep this (secret|hidden)|system prompt override', re.I)),
+    ('hidden_text', re.compile(r'[\u200b\u200c\u200d\u200e\u200f\u2060\u2061\u2062\u2063\u2064\ufeff\u00ad]|<!--[^>]{0,400}(instruction|ignore|must|always|never)[^>]{0,400}-->', re.I)),
+    ('elevated', re.compile(r'\bsudo\b|chmod\s+[0-7]*777|launchctl\s+(load|bootstrap)|crontab\s+-|\bosascript\b|defaults\s+write', re.I)),
+    ('self_modifying', re.compile(r'~/\.claude/(settings|CLAUDE\.md)|\.claude/settings\.json|settings\.local\.json|~/\.zshrc|~/\.bashrc|~/\.gitconfig', re.I)),
+]
+URL = re.compile(r'https?://([a-z0-9.-]+\.[a-z]{2,})', re.I)
 
 
 def iso(ts):
@@ -58,6 +72,20 @@ def enabled_plugins():
     return out
 
 
+def risk_flags(texts):
+    """texts: {label: content}. Returns [{flag, where, sample}] with one sample per flag per file, plus external hosts."""
+    flags, hosts = [], set()
+    for where, content in texts.items():
+        for name, rx in RISK_PATTERNS:
+            m = rx.search(content)
+            if m:
+                end = content.find('\n', m.end())
+                line = content[content.rfind('\n', 0, m.start()) + 1:end if end > 0 else len(content)]
+                flags.append({'flag': name, 'where': where, 'sample': line.strip()[:200]})
+        hosts.update(h.lower() for h in URL.findall(content))
+    return flags, sorted(hosts)
+
+
 def read_skill(path, plugin=None, root=None):
     text = path.read_text(errors='replace')
     fm, body = frontmatter(text)
@@ -71,6 +99,22 @@ def read_skill(path, plugin=None, root=None):
         installed = min(f.stat().st_mtime for f in folder.rglob('*') if f.is_file())
     except ValueError:
         installed = folder.stat().st_mtime
+    # everything text-like the skill ships, capped, for the safety pre-scan and the Jev risk question
+    texts, budget = {'SKILL.md': text}, 30000
+    for f in sorted(folder.rglob('*')):
+        if f.is_file() and f.suffix in TEXT_SUFFIXES and f.name != 'SKILL.md' and 'node_modules' not in f.parts and budget > 0:
+            try:
+                chunk = f.read_text(errors='replace')[:budget]
+            except OSError:
+                continue
+            texts[str(f.relative_to(folder))] = chunk
+            budget -= len(chunk)
+    if plugin:
+        for extra in ('hooks/hooks.json', '.claude-plugin/plugin.json'):
+            pf = folder.parent.parent / extra
+            if pf.exists():
+                texts['plugin:' + extra] = pf.read_text(errors='replace')[:4000]
+    flags, hosts = risk_flags(texts)
     return {
         'id': f'{plugin}:{base}' if plugin else (rel if root else base),
         'name': base,
@@ -84,7 +128,11 @@ def read_skill(path, plugin=None, root=None):
         'user_invocable': fm.get('user-invocable', '').lower() == 'true',
         'body_chars': len(body),
         'body_excerpt': body.strip()[:2500],
+        'body_full': body.strip()[:12000],
+        'files_text': {k: v for k, v in texts.items() if k != 'SKILL.md'},
         'scripts': scripts,
+        'risk_flags': flags,
+        'external_hosts': hosts,
         'installed_at': iso(installed),
     }
 

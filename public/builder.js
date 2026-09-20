@@ -95,8 +95,9 @@ $('judgment-cards').addEventListener('change',e=>{
 });
 $('judgment-cards').addEventListener('click',e=>{const remove=e.target.closest('[data-remove]');if(!remove)return;judgmentPlan.splice(Number(remove.dataset.remove),1);savePlan();renderBuilder();render();});
 $('content-preset').onclick=()=>{judgmentPlan=Object.entries(data.config.content_questions).map(([id,spec])=>({id,enabled:true,spec:structuredClone(spec)}));savePlan();renderBuilder();render();};
+$('risk-preset').onclick=()=>{judgmentPlan=Object.entries(data.config.risk_questions).map(([id,spec])=>({id,enabled:true,spec:structuredClone(spec)}));savePlan();renderBuilder();render();};
 $('audit-preset').onclick=()=>{judgmentPlan=Object.entries(data.config.usage_questions).map(([id,spec])=>({id,enabled:true,spec:structuredClone(spec)}));savePlan();renderBuilder();render();};
-$('extended-preset').onclick=()=>{judgmentPlan=Object.entries({...data.config.usage_questions,...data.config.content_questions,...data.config.presets}).map(([id,spec])=>({id,enabled:true,spec:structuredClone(spec)}));savePlan();renderBuilder();render();};
+$('extended-preset').onclick=()=>{judgmentPlan=Object.entries({...data.config.usage_questions,...data.config.content_questions,...data.config.risk_questions,...data.config.presets}).map(([id,spec])=>({id,enabled:true,spec:structuredClone(spec)}));savePlan();renderBuilder();render();};
 $('add-judgment').onclick=()=>{
  if(judgmentPlan.length>=12){toast('Up to 12 judgments per run.',true);return;}
  const type=$('new-judgment-type').value;let n=1;while(judgmentPlan.some(q=>q.id===`${type}_${n}`))n++;
