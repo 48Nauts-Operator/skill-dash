@@ -33,4 +33,20 @@ python3 -m unittest discover -s tests -v
 
 Jev credential: `TYPESAFE_API_KEY` or macOS Keychain service `xnaut`, account `plugin/typesafe/TYPESAFE_API_KEY`. Model `jev-1.13.0`, override with `TYPESAFE_MODEL`.
 
-Ticket 48NAUTS-7. Design: `work:Development/48Nauts/features/2026-09-20_Skill-Dash-Design.md`.
+## Corpus tools
+
+The same loader, pre-scan and judge run at corpus scale for [whichskills.dev](https://whichskills.dev):
+
+```sh
+python3 scripts/crawl.py discover --out corpus.json --limit 200        # GitHub repo search via gh, sorted by stars
+python3 scripts/crawl.py clone corpus.json --dest repos                # blobless clones with history
+python3 scripts/crawl.py scan --dest repos --corpus corpus.json --out report.json --md report.md
+python3 scripts/judge_queue.py --dest repos --out jev-risk.json        # Jev safety read, deduplicated by body
+python3 scripts/build_site.py --corpus . --out website                 # the static site, every number from the JSON
+```
+
+`crawl.py` makes no Jev calls; it builds the triage queue. `judge_queue.py` is the paid step and writes incrementally, so a stopped run keeps what it paid for.
+
+## Status
+
+An experiment by [48Nauts](https://48nauts.com). Site and data: [whichskills-website](https://github.com/48Nauts-Operator/whichskills-website). Not a security scanner; use one before installing anything. MIT license.
