@@ -230,6 +230,7 @@ def page(corpus, report, clones, risk):
 <meta property="og:title" content="Which skills are worth installing?"><meta property="og:description" content="{esc(desc)}"><meta property="og:url" content="{SITE}/"><meta property="og:image" content="{SITE}/og.png"><meta property="og:type" content="website">
 <meta name="twitter:card" content="summary_large_image"><meta name="twitter:title" content="whichskills.dev"><meta name="twitter:description" content="{esc(desc)}"><meta name="twitter:image" content="{SITE}/og.png">
 <link rel="icon" href="/favicon.svg"><link rel="stylesheet" href="/css/style.css?v=3"><script defer src="/js/main.js?v=2"></script>
+<script defer src="https://wave.21nauts.com/script.js" data-website-id="ce023ab7-f50a-4ff0-ae87-e8909d6b257f"></script>
 <script type="application/ld+json">{dataset_ld}</script><script type="application/ld+json">{faq_ld}</script>
 </head><body>
 <header class="nav"><a class="brand" href="/"><span class="mark">w×</span> whichskills<span class="tld">.dev</span></a><nav><a href="#findings">Findings</a><a href="#fingerprints">Fingerprints</a><a href="#clones">Clones</a><a href="#safety">Safety read</a><a href="#repos">Repos</a><a href="#method">Method</a><a href="https://github.com/48Nauts-Operator/whichskills-website">GitHub</a></nav></header>
@@ -284,7 +285,7 @@ def page(corpus, report, clones, risk):
 
 
 LEGAL = {
-    'privacy.html': ('Privacy', '<p>This site is static files on GitHub Pages behind Cloudflare. It sets no cookies and keeps no accounts. If analytics are enabled they run on a self-hosted, cookieless Umami instance operated by 48Nauts and record page views without personal identifiers. The data published here was collected from public GitHub repositories and describes files, not people; repository owners are named because the files are theirs. To request a recheck or a correction, open an issue on the whichskills repository.</p>'),
+    'privacy.html': ('Privacy', '<p>This site is static files on GitHub Pages behind Cloudflare. It sets no cookies and keeps no accounts. Page views are counted by a self-hosted, cookieless Umami instance operated by 48Nauts (wave.21nauts.com); it records the page, referrer, browser family and country, no personal identifiers, and honours Do Not Track. The data published here was collected from public GitHub repositories and describes files, not people; repository owners are named because the files are theirs. To request a recheck or a correction, open an issue on the whichskills repository.</p>'),
     'terms.html': ('Terms', '<p>Everything on this site describes the content of public files at a specific commit, produced by the published pipeline. It is not security advice and not a certification. A row without findings means nothing was found in the text that was read. Use a dedicated scanner before installing anything. Data is published under CC BY 4.0, code under the license in the repository. 48Nauts accepts no liability for decisions made on the basis of this page.</p>'),
 }
 
