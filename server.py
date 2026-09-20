@@ -89,7 +89,7 @@ class Application:
         merged, errors = {}, []
         for i, root in enumerate(self.roots or [None]):
             out = self.data_dir / f'overlap-{i}.md'
-            cmd = [sys.executable, str(AUDIT), 'overlap', '--out', str(out)] + (['--dir', root, '--recursive'] if root else [])
+            cmd = [sys.executable, str(AUDIT)] + (['--dir', root, '--recursive'] if root else []) + ['overlap', '--out', str(out)]
             r = subprocess.run(cmd, capture_output=True, text=True, timeout=7200)
             j = out.with_suffix('.json')
             if r.returncode == 0 and j.exists():
