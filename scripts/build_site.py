@@ -252,16 +252,17 @@ def page(corpus, report, clones, risk):
 <link rel="canonical" href="{SITE}/"><meta name="theme-color" content="#0c0a09">
 <meta property="og:title" content="Which skills are worth installing?"><meta property="og:description" content="{esc(desc)}"><meta property="og:url" content="{SITE}/"><meta property="og:image" content="{SITE}/og.png"><meta property="og:type" content="website">
 <meta name="twitter:card" content="summary_large_image"><meta name="twitter:title" content="whichskills.dev"><meta name="twitter:description" content="{esc(desc)}"><meta name="twitter:image" content="{SITE}/og.png">
-<link rel="icon" href="/favicon.svg"><link rel="stylesheet" href="/css/style.css?v=7"><script defer src="/js/main.js?v=5"></script>
+<link rel="icon" href="/favicon.svg"><link rel="stylesheet" href="/css/style.css?v=9"><script defer src="/js/main.js?v=5"></script>
 <script defer src="https://wave.21nauts.com/script.js" data-website-id="ce023ab7-f50a-4ff0-ae87-e8909d6b257f"></script>
 <script type="application/ld+json">{dataset_ld}</script><script type="application/ld+json">{faq_ld}</script>
 </head><body>
-<header class="nav"><a class="brand" href="/"><span class="mark">w×</span> whichskills<span class="tld">.dev</span></a><nav><a href="#experiment">Experiment</a><a href="#findings">Findings</a><a href="#fingerprints">Fingerprints</a><a href="#clones">Clones</a><a href="#safety">Safety read</a><a href="#repos">Repos</a><a href="#method">Method</a><a href="https://github.com/48Nauts-Operator/skill-dash">GitHub</a></nav></header>
+<header class="nav"><a class="brand" href="/"><span class="mark">w×</span> whichskills<span class="tld">.dev</span></a><nav><a href="#experiment">Experiment</a><a href="#findings">Findings</a><a href="#fingerprints">Fingerprints</a><a href="#clones">Clones</a><a href="#safety">Safety read</a><a href="#repos">Repos</a><a href="#method">Method</a><a href="#run">Run it yourself</a><a href="https://github.com/48Nauts-Operator/skill-dash">GitHub</a></nav></header>
 <main>
 <section class="hero"><div class="eyebrow">AN EXPERIMENT BY 48NAUTS · JUDGED BY JEV · SNAPSHOT {SNAPSHOT}</div>
 <h1>Which skills are worth installing?</h1>
 <p class="lede">We pulled the 200 most-starred GitHub repos that publish Claude Code and Codex skills, read all {total_skills:,} of them the same way, and published every receipt. Not a scanner. A census with evidence. It shows who copied whom, what a one-second typed judge flags, and what a person found on reading the flagged files.</p>
 <div class="stats">{stat(len(report), 'repos with skills')}{stat(f'{total_skills:,}', 'skills read')}{stat(total_manifests, 'plugin manifests')}{stat(f'{pct_copies:.0%}' if pct_copies else '—', 'byte-identical copies')}{stat(len(risk), 'bodies read by Jev')}{stat(0, 'malware aimed at the installing user')}</div>
+<p class="cta-line"><a class="button" href="#run">Run it on your own skills</a> <a class="button ghost" href="https://github.com/48Nauts-Operator/skill-dash">Get the code</a></p>
 <p class="note">Every row links to the file at the commit we read. The build script computes every number from the published data files; nobody types one in. We label same-owner mirrors. Stars appear as a column and never decide rank.</p></section>
 
 <section id="experiment"><div class="eyebrow">THE EXPERIMENT</div><h2>Can a one-second typed judge audit eighteen thousand skills?</h2>
@@ -310,7 +311,19 @@ def page(corpus, report, clones, risk):
 <li><b>Provenance.</b> Body hash after removing frontmatter and collapsing whitespace, bodies under 400 characters ignored. Origin by first-party registry, else earliest first-commit date. Attribution by the copy's own text.</li>
 <li><b>Not read.</b> Binaries, images, anything fetched at runtime, and repos outside the top 200. A clean row means nothing was found in the text we read, not that the skill is safe.</li>
 </ol>
-<p>The pipeline that produced every number here, the crawler, the static pre-scan, the Jev judge and the local dashboard, is open source at <a href="https://github.com/48Nauts-Operator/skill-dash">github.com/48Nauts-Operator/skill-dash</a>. Run it on your own tree with <code>python3 server.py --roots &lt;dir&gt;</code>; nothing leaves your machine except the Jev calls you choose to make. The verbatim Jev questions above are already the ones the pipeline sends. Data files: <a href="/data/report.json">report</a>, <a href="/data/clones.json">clones</a>, <a href="/data/jev-risk.json">jev-risk</a>, <a href="/data/corpus.json">corpus</a>, CC BY 4.0.</p></section>
+<p>Data files: <a href="/data/report.json">report</a>, <a href="/data/clones.json">clones</a>, <a href="/data/jev-risk.json">jev-risk</a>, <a href="/data/corpus.json">corpus</a>, CC BY 4.0. The pipeline is open source; the next section is about running it yourself.</p></section>
+
+<section id="run" class="run"><div class="eyebrow">WHAT TO DO NEXT</div><h2>Run it on your own skills before you download more</h2>
+<p class="lede">This census started with one tree of 78 skills that nobody could account for. Most Claude Code and Codex users have that folder: installed from a list with ten thousand stars, never read, never removed, half of it twins. The corpus above is that folder at scale. The fix is not another list. It is a baseline of what you already have, and the pipeline behind this page gives you one in a few minutes, locally.</p>
+<pre>git clone https://github.com/48Nauts-Operator/skill-dash &amp;&amp; cd skill-dash
+export TYPESAFE_API_KEY=...   # typesafe.ai
+python3 server.py --port 3345</pre>
+<p class="cta-line"><a class="button" href="https://github.com/48Nauts-Operator/skill-dash">github.com/48Nauts-Operator/skill-dash</a><span class="small">MIT. Python standard library only. No account, no upload; nothing leaves your machine except the Jev calls you choose to make.</span></p>
+<div class="grid three">
+<article class="card"><div class="eyebrow">1 · BASELINE YOUR TREE</div><h3>See what you actually have</h3><p>Every skill and plugin manifest in <code>~/.claude/skills</code> as a row. How often you invoked each one, from your own transcripts. Which two are twins. Which descriptions are too vague for the agent to ever pick. Which ones repeat what your CLAUDE.md already says. The same static safety pre-scan we ran on 18,041 skills, free, and the Jev read on anything it flags.</p><p class="why"><b>Why it matters.</b> A skill only helps if the agent picks it at the right moment. Fifteen that trigger reliably beat two hundred in a folder, and you cannot know which fifteen without measuring.</p></article>
+<article class="card"><div class="eyebrow">2 · VET A REPO FIRST</div><h3>Judge a list before you install from it</h3><p><code>python3 server.py --roots path/to/repo</code> loads any tree of SKILL.md files, runs the overlap audit, and asks Jev which skills duplicate each other, which are clear enough to trigger, and which are worth having on content alone. That is the exact run that produced every row on this page.</p><p class="why"><b>Why it matters.</b> Stars told us nothing about duplication, clarity or safety. Ten minutes with the repo open in the dashboard tells you more than the README does.</p></article>
+<article class="card"><div class="eyebrow">3 · DECIDE WITH EVIDENCE</div><h3>Keep, rewrite, merge or delete, on the record</h3><p>Each row gets a decision and a note, saved locally and exported as JSON. Rewrite the vague descriptions in the words you would actually say. Merge the twins. Delete what a hook or your CLAUDE.md already does. Then, if something is still missing, go looking for it.</p><p class="why"><b>Why it matters.</b> A smaller tree gets used more, which is the only thing that makes usage numbers mean anything next time you look.</p></article>
+</div></section>
 
 <section id="faq"><div class="eyebrow">QUESTIONS</div><h2>Asked before we published</h2>{faq_html}</section>
 </main>
@@ -334,7 +347,7 @@ def main():
     for n in ('report', 'clones', 'jev-risk', 'corpus'):
         (out / 'data' / f'{n}.json').write_text((Path(a.corpus) / f'{n}.json').read_text())
     for name, (title, body) in LEGAL.items():
-        (out / name).write_text(f'<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>{title} · whichskills.dev</title><meta name="robots" content="noindex"><link rel="stylesheet" href="/css/style.css?v=7"></head><body><header class="nav"><a class="brand" href="/"><span class="mark">w×</span> whichskills<span class="tld">.dev</span></a></header><main><section><h1>{title}</h1>{body}</section></main></body></html>')
+        (out / name).write_text(f'<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>{title} · whichskills.dev</title><meta name="robots" content="noindex"><link rel="stylesheet" href="/css/style.css?v=9"></head><body><header class="nav"><a class="brand" href="/"><span class="mark">w×</span> whichskills<span class="tld">.dev</span></a></header><main><section><h1>{title}</h1>{body}</section></main></body></html>')
     (out / 'robots.txt').write_text(f'User-agent: *\nAllow: /\nSitemap: {SITE}/sitemap.xml\n')
     (out / 'sitemap.xml').write_text(f'<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"><url><loc>{SITE}/</loc><lastmod>{SNAPSHOT}</lastmod></url></urlset>\n')
     (out / 'CNAME').write_text('whichskills.dev\n'); (out / '.nojekyll').write_text('')
