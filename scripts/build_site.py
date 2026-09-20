@@ -252,18 +252,18 @@ def page(corpus, report, clones, risk):
 <link rel="canonical" href="{SITE}/"><meta name="theme-color" content="#0c0a09">
 <meta property="og:title" content="Which skills are worth installing?"><meta property="og:description" content="{esc(desc)}"><meta property="og:url" content="{SITE}/"><meta property="og:image" content="{SITE}/og.png"><meta property="og:image:width" content="1200"><meta property="og:image:height" content="630"><meta property="og:image:alt" content="Which skills are worth installing? 157 repos, 18,041 skills read, 36% identical copies, 0 read as malware."><meta property="og:type" content="website">
 <meta name="twitter:card" content="summary_large_image"><meta name="twitter:title" content="whichskills.dev"><meta name="twitter:description" content="{esc(desc)}"><meta name="twitter:image" content="{SITE}/og.png">
-<link rel="icon" href="/favicon.svg"><link rel="stylesheet" href="/css/style.css?v=12"><script defer src="/js/main.js?v=5"></script>
+<link rel="icon" href="/favicon.svg"><link rel="stylesheet" href="/css/style.css?v=13"><script defer src="/js/main.js?v=5"></script>
 <script defer src="https://wave.21nauts.com/script.js" data-website-id="ce023ab7-f50a-4ff0-ae87-e8909d6b257f"></script>
 <script type="application/ld+json">{dataset_ld}</script><script type="application/ld+json">{faq_ld}</script>
 </head><body>
-<header class="nav"><a class="brand" href="/"><span class="mark">w×</span> whichskills<span class="tld">.dev</span></a><nav><a href="#experiment">Experiment</a><a href="#findings">Findings</a><a href="#fingerprints">Fingerprints</a><a href="#clones">Clones</a><a href="#safety">Safety read</a><a href="#repos">Repos</a><a href="#method">Method</a><a href="#run">Run it yourself</a><a class="gh" href="https://github.com/48Nauts-Operator/skill-dash" aria-label="skill-dash on GitHub" title="skill-dash on GitHub"><svg viewBox="0 0 16 16" width="18" height="18" aria-hidden="true" fill="currentColor"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.01 8.01 0 0 0 16 8c0-4.42-3.58-8-8-8z"/></svg></a></nav></header>
+<header class="nav"><a class="brand" href="/"><span class="mark">w×</span> whichskills<span class="tld">.dev</span></a><nav><a href="#experiment">Experiment</a><a href="#findings">Findings</a><a href="#fingerprints">Fingerprints</a><a href="#clones">Clones</a><a href="#safety">Safety read</a><a href="#repos">Repos</a><a href="#method">Method</a><a href="/skills.html">Index</a><a href="#run">Run it yourself</a><a class="gh" href="https://github.com/48Nauts-Operator/skill-dash" aria-label="skill-dash on GitHub" title="skill-dash on GitHub"><svg viewBox="0 0 16 16" width="18" height="18" aria-hidden="true" fill="currentColor"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.01 8.01 0 0 0 16 8c0-4.42-3.58-8-8-8z"/></svg></a></nav></header>
 <main>
 <section class="hero"><div class="eyebrow">AN EXPERIMENT BY 48NAUTS · JUDGED BY JEV · SNAPSHOT {SNAPSHOT}</div>
 <h1>Which skills are worth installing?</h1>
 <p class="tagline">Cut the skill slop.</p>
 <p class="lede">We pulled the 200 most-starred GitHub repos that publish Claude Code and Codex skills, read all {total_skills:,} of them the same way, and published every receipt. Not a scanner. A census with evidence. It shows who copied whom, what a one-second typed judge flags, and what a person found on reading the flagged files.</p>
 <div class="stats">{stat(len(report), 'repos with skills')}{stat(f'{total_skills:,}', 'skills read')}{stat(total_manifests, 'plugin manifests')}{stat(f'{pct_copies:.0%}' if pct_copies else '—', 'byte-identical copies')}{stat(len(risk), 'bodies read by Jev')}{stat(0, 'malware aimed at the installing user')}</div>
-<p class="cta-line"><a class="button" href="#run">Run it on your own skills</a> <a class="button ghost" href="https://github.com/48Nauts-Operator/skill-dash">Get the code</a></p>
+<p class="cta-line"><a class="button" href="#run">Run it on your own skills</a> <a class="button ghost" href="/skills.html">Search all 18,598 rows</a> <a class="button ghost" href="https://github.com/48Nauts-Operator/skill-dash">Get the code</a></p>
 <p class="note">Every row links to the file at the commit we read. The build script computes every number from the published data files; nobody types one in. We label same-owner mirrors. Stars appear as a column and never decide rank.</p></section>
 
 <section id="experiment"><div class="eyebrow">THE EXPERIMENT</div><h2>Can a one-second typed judge audit eighteen thousand skills?</h2>
@@ -297,7 +297,7 @@ def page(corpus, report, clones, risk):
 <p class="small">"On reading" is our category after opening the file. Test fixture with live payload: a deliberately malicious example shipped for testing. Dual-use by design: offensive-security teaching material that says so. Autonomy override: text that instructs the agent to act without user confirmation. False positive: the pattern matched ordinary tooling. Nothing in this table is labelled malicious. The data file lists the three bodies the API rejected as oversized, with the error.</p></section>
 
 <section id="repos"><div class="eyebrow">THE CENSUS</div><h2>All {len(report)} repos in the snapshot</h2>
-<p>Sorted by stars. Click a header to sort. Copies taken counts byte-identical bodies this repo took from a different owner; mirrored counts bodies it shares with its own second org. Max Jev is the highest risk score among its judged bodies; a dash means nothing in it reached the queue.</p>
+<p>Sorted by stars. Click a header to sort. Every individual skill is searchable in <a href="/skills.html">the index</a>. Copies taken counts byte-identical bodies this repo took from a different owner; mirrored counts bodies it shares with its own second org. Max Jev is the highest risk score among its judged bodies; a dash means nothing in it reached the queue.</p>
 {table(['Repo @ commit', 'Stars', 'Skills', 'Manifests', 'Copies taken', 'Mirrored', 'Flagged rows', 'Max Jev', 'Top static flags'], repo_rows, cls='repos', sortable=True)}
 <p class="small">{hook_repos} repos ship plugin hooks that run a command at session start, on a prompt or after a tool call. Those are listed under Manifests and flagged auto_run_hook; a hook is not a finding by itself.</p></section>
 
@@ -342,6 +342,35 @@ python3 server.py --port 3345      # then open http://localhost:3345</pre>
 '''
 
 
+def index_page(report):
+    total = sum(r['skills'] for r in report) + sum(r['manifests'] for r in report)
+    desc = f'Search all {total:,} Claude Code and Codex skills and plugin manifests from the {len(report)} most-starred repos. Every row links to the file at the commit we read and to its origin when it is a copy.'
+    return f'''<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Skill index · whichskills.dev</title><meta name="description" content="{esc(desc)}"><link rel="canonical" href="{SITE}/skills.html"><meta name="theme-color" content="#0c0a09">
+<meta property="og:title" content="Skill index · whichskills.dev"><meta property="og:description" content="{esc(desc)}"><meta property="og:url" content="{SITE}/skills.html"><meta property="og:image" content="{SITE}/og.png"><meta name="twitter:card" content="summary_large_image">
+<link rel="icon" href="/favicon.svg"><link rel="stylesheet" href="/css/style.css?v=13"><script defer src="/js/index.js?v=1"></script>
+<script defer src="https://wave.21nauts.com/script.js" data-website-id="ce023ab7-f50a-4ff0-ae87-e8909d6b257f"></script>
+</head><body>
+<header class="nav"><a class="brand" href="/"><span class="mark">w×</span> whichskills<span class="tld">.dev</span></a><nav><a href="/#experiment">Experiment</a><a href="/#findings">Findings</a><a href="/#clones">Clones</a><a href="/#safety">Safety read</a><a href="/#repos">Repos</a><a href="/skills.html" aria-current="page">Index</a><a href="/#run">Run it yourself</a><a class="gh" href="https://github.com/48Nauts-Operator/skill-dash" aria-label="skill-dash on GitHub"><svg viewBox="0 0 16 16" width="18" height="18" aria-hidden="true" fill="currentColor"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.01 8.01 0 0 0 16 8c0-4.42-3.58-8-8-8z"/></svg></a></nav></header>
+<main>
+<section class="hero index-hero"><div class="eyebrow">THE INDEX · SNAPSHOT {SNAPSHOT}</div><h1>Every skill in the snapshot</h1>
+<p class="lede">{total:,} skills and plugin manifests from {len(report)} repos. Search by name, repo, path or description. Each row links to the file at the commit we read. Copies say what they copy and whether they credit it; originals say how many copies exist elsewhere. Nothing here is a recommendation; it is where things are.</p>
+<div class="index-tools"><div class="search-box"><span>⌕</span><input id="q" type="search" placeholder="Search 18,000 skills… e.g. postgres migration, pdf, playwright" aria-label="Search skills" autofocus></div>
+<select id="repo" aria-label="Repo"><option value="">All repos</option></select>
+<select id="type" aria-label="Type"><option value="all">Skills and manifests</option><option value="s">Skills only</option><option value="m">Plugin manifests only</option></select>
+<select id="prov" aria-label="Provenance"><option value="all">Any provenance</option><option value="orig">Originals with copies</option><option value="copy">Copies</option><option value="unique">Unique bodies</option></select>
+<label class="chk"><input id="flagged" type="checkbox"> flagged</label><label class="chk"><input id="judged" type="checkbox"> read by Jev</label></div>
+<p id="loading" class="small">Loading the index, about 5 MB…</p></section>
+<section id="index" hidden><div class="section-top"><span id="count" class="small"></span><div id="pager" class="pager"></div></div>
+<div class="table-wrap"><table class="index"><thead><tr><th data-key="n">Skill</th><th data-key="r">Repo @ commit</th><th>Description</th><th data-key="o">Provenance</th><th data-key="f">Flags</th><th data-key="j">Jev risk</th><th data-key="b">Body</th></tr></thead><tbody id="rows"></tbody></table></div>
+<div class="section-top"><span class="small">Flags are static pattern hits, not findings. Jev risk exists only for bodies that reached the safety queue. Body is the SKILL.md size in characters.</span><div id="pager2" class="pager"></div></div></section>
+</main>
+<footer><span>An experiment by <a href="https://48nauts.com">48Nauts</a>. Judged by <a href="https://typesafe.ai">Jev</a>. <a href="/">Back to the census</a>.</span><span><a href="/privacy.html">Privacy</a> · <a href="/terms.html">Terms</a> · Data CC BY 4.0</span></footer>
+</body></html>
+'''
+
+
 LEGAL = {
     'privacy.html': ('Privacy', '<p>This site is static files on GitHub Pages behind Cloudflare. It sets no cookies and keeps no accounts. Page views are counted by a self-hosted, cookieless Umami instance operated by 48Nauts; it records the page, referrer, browser family and country, no personal identifiers, and honours Do Not Track. The data published here was collected from public GitHub repositories and describes files, not people; repository owners are named because the files are theirs. To request a recheck or a correction, open an issue on the whichskills repository.</p>'),
     'terms.html': ('Terms', '<p>Everything on this site describes the content of public files at a specific commit, produced by the published pipeline. It is not security advice and not a certification. A row without findings means nothing was found in the text that was read. Use a dedicated scanner before installing anything. Data is published under CC BY 4.0, code under the license in the repository. 48Nauts accepts no liability for decisions made on the basis of this page.</p>'),
@@ -354,12 +383,15 @@ def main():
     out = Path(a.out); (out / 'data').mkdir(parents=True, exist_ok=True)
     corpus, report, clones, risk = load(a.corpus)
     (out / 'index.html').write_text(page(corpus, report, clones, risk))
-    for n in ('report', 'clones', 'jev-risk', 'corpus'):
-        (out / 'data' / f'{n}.json').write_text((Path(a.corpus) / f'{n}.json').read_text())
+    for n in ('report', 'clones', 'jev-risk', 'corpus', 'skills-index'):
+        src = Path(a.corpus) / f'{n}.json'
+        if src.exists():
+            (out / 'data' / f'{n}.json').write_text(src.read_text())
+    (out / 'skills.html').write_text(index_page(report))
     for name, (title, body) in LEGAL.items():
-        (out / name).write_text(f'<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>{title} · whichskills.dev</title><meta name="robots" content="noindex"><link rel="stylesheet" href="/css/style.css?v=12"></head><body><header class="nav"><a class="brand" href="/"><span class="mark">w×</span> whichskills<span class="tld">.dev</span></a></header><main><section><h1>{title}</h1>{body}</section></main></body></html>')
+        (out / name).write_text(f'<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>{title} · whichskills.dev</title><meta name="robots" content="noindex"><link rel="stylesheet" href="/css/style.css?v=13"></head><body><header class="nav"><a class="brand" href="/"><span class="mark">w×</span> whichskills<span class="tld">.dev</span></a></header><main><section><h1>{title}</h1>{body}</section></main></body></html>')
     (out / 'robots.txt').write_text(f'User-agent: *\nAllow: /\nSitemap: {SITE}/sitemap.xml\n')
-    (out / 'sitemap.xml').write_text(f'<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"><url><loc>{SITE}/</loc><lastmod>{SNAPSHOT}</lastmod></url></urlset>\n')
+    (out / 'sitemap.xml').write_text(f'<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"><url><loc>{SITE}/</loc><lastmod>{SNAPSHOT}</lastmod></url><url><loc>{SITE}/skills.html</loc><lastmod>{SNAPSHOT}</lastmod></url></urlset>\n')
     (out / 'CNAME').write_text('whichskills.dev\n'); (out / '.nojekyll').write_text('')
     (out / 'favicon.svg').write_text('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32"><rect width="32" height="32" rx="7" fill="#f7ab71"/><text x="16" y="22" text-anchor="middle" font-family="ui-monospace,monospace" font-weight="800" font-size="17" fill="#1a120b">w×</text></svg>')
     print(f'built {out}: {len(report)} repos, {sum(r["skills"] for r in report)} skills, {len(risk)} judged bodies')
