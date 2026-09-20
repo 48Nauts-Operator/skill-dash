@@ -120,17 +120,18 @@ def radar_svg(vals, median, title, sub):
     return f'<figure class="radar"><svg viewBox="0 0 240 180" role="img" aria-label="Fingerprint of {esc(title)}">{ring(.5)}{ring(1)}{spokes}{poly(median, "#4d86cc", True)}{poly(vals, "#d9742c", False)}{dots}{labels}</svg><figcaption><b>{esc(title)}</b><span>{esc(sub)}</span></figcaption></figure>'
 
 
-def flow_svg(ct, n_origins=9, n_takers=9):
-    """Who copied whom: origins left, takers right, one line per pair, width by bodies. Same-owner mirrors dashed blue."""
+def flow_svg(ct, n_origins=12, n_takers=12, min_bodies=2, all_rows=False):
+    """Who copied whom: origins left, takers right, one line per pair, width by bodies. Same-owner mirrors dashed blue.
+    all_rows=True draws every origin, taker and pair in the data."""
     import math
     pairs = dict(ct['pairs']); mirrors = ct['mirrors']
-    origins = [o for o, _ in ct['origins'].most_common(n_origins)]
-    takers = [t for t, _ in ct['takers'].most_common(n_takers)]
-    for (a, b), n in mirrors.most_common(2):  # the big self-mirrors belong in the picture, labelled as such
+    origins = [o for o, _ in ct['origins'].most_common(None if all_rows else n_origins)]
+    takers = [t for t, _ in ct['takers'].most_common(None if all_rows else n_takers)]
+    for (a, b), n in mirrors.most_common(None if all_rows else 2):  # self-mirrors belong in the picture, labelled as such
         if a not in origins: origins.append(a)
         if b not in takers: takers.append(b)
     edges = [(a, b, n, False) for (a, b), n in pairs.items() if a in origins and b in takers] + [(a, b, n, True) for (a, b), n in mirrors.items() if a in origins and b in takers]
-    edges = [e for e in edges if e[2] >= 2 or e[3]]
+    edges = [e for e in edges if all_rows or e[2] >= min_bodies or e[3]]
     W, LX, RX, BW, RH, TOP = 980, 12, 700, 268, 34, 22
     H = TOP + RH * max(len(origins), len(takers)) + 10
     ymap = lambda lst, i: TOP + i * RH + RH / 2
@@ -154,7 +155,8 @@ def flow_svg(ct, n_origins=9, n_takers=9):
         paths.append(f'<path d="M{x1},{y1} C{(x1 + x2) / 2},{y1} {(x1 + x2) / 2},{y2} {x2},{y2}" fill="none" stroke="{color}" stroke-opacity=".75" stroke-width="{w:.1f}"{dash}><title>{esc(a)} → {esc(b)}: {n} byte-identical bodies{" (same owner)" if mirror else ""}</title></path>'
                      + (f'<text x="{bx:.0f}" y="{by - 5:.0f}" text-anchor="middle" fill="#c9b8a8" font-size="9">{n}</text>' if n >= 3 else ''))
     hdr = f'<text x="{LX}" y="12" fill="#b39a85" font-size="9" letter-spacing="1.5">ORIGIN · BODIES COPIED FROM IT</text><text x="{RX}" y="12" fill="#b39a85" font-size="9" letter-spacing="1.5">TAKER · BODIES TAKEN</text>'
-    return f'<figure class="flow"><svg viewBox="0 0 {W} {H}" role="img" aria-label="Who copied whom">{hdr}{"".join(paths)}{left}{right}</svg><figcaption><span><i class="sw o"></i>third-party copy, width by bodies</span><span><i class="sw m"></i>same owner, second org</span><span>pairs with at least two bodies shown; hover a line for the count</span></figcaption></figure>'
+    note = f'all {len(origins)} origins, {len(takers)} takers and {len(edges)} pairs' if all_rows else f'{len(origins)} origins and {len(takers)} takers by volume; pairs with at least {min_bodies} bodies'
+    return f'<figure class="flow{" full" if all_rows else ""}"><svg viewBox="0 0 {W} {H}" role="img" aria-label="Who copied whom">{hdr}{"".join(paths)}{left}{right}</svg><figcaption><span><i class="sw o"></i>third-party copy, width by bodies</span><span><i class="sw m"></i>same owner, second org</span><span>{note}; hover a line for the count</span></figcaption></figure>'
 
 
 def page(corpus, report, clones, risk):
@@ -229,7 +231,7 @@ def page(corpus, report, clones, risk):
 <link rel="canonical" href="{SITE}/"><meta name="theme-color" content="#0c0a09">
 <meta property="og:title" content="Which skills are worth installing?"><meta property="og:description" content="{esc(desc)}"><meta property="og:url" content="{SITE}/"><meta property="og:image" content="{SITE}/og.png"><meta property="og:type" content="website">
 <meta name="twitter:card" content="summary_large_image"><meta name="twitter:title" content="whichskills.dev"><meta name="twitter:description" content="{esc(desc)}"><meta name="twitter:image" content="{SITE}/og.png">
-<link rel="icon" href="/favicon.svg"><link rel="stylesheet" href="/css/style.css?v=4"><script defer src="/js/main.js?v=2"></script>
+<link rel="icon" href="/favicon.svg"><link rel="stylesheet" href="/css/style.css?v=5"><script defer src="/js/main.js?v=2"></script>
 <script defer src="https://wave.21nauts.com/script.js" data-website-id="ce023ab7-f50a-4ff0-ae87-e8909d6b257f"></script>
 <script type="application/ld+json">{dataset_ld}</script><script type="application/ld+json">{faq_ld}</script>
 </head><body>
@@ -261,6 +263,7 @@ def page(corpus, report, clones, risk):
 <section id="clones"><div class="eyebrow">WAR OF THE SKILL CLONES</div><h2>Who copied whom</h2>
 <p>{len(clones):,} skill bodies appear byte-identically in more than one repo: {len(ct['third']) + len(ct['mirror']):,} copy instances in total. {len(ct['mirror']):,} of them are the same owner publishing under a second org. The war is mostly people forking themselves.</p>
 {flow_svg(ct)}
+<details class="expand"><summary>Show every origin, taker and pair in the data</summary>{flow_svg(ct, all_rows=True)}</details>
 <div class="cols"><div><h3>Same-owner mirrors</h3>{table(['Mirror', 'Bodies'], mirror_rows)}</div><div><h3>Third-party copies, by source</h3>{table(['Origin', 'Bodies copied by others', 'Origin label'], origin_rows)}</div></div>
 <div class="cols"><div><h3>Third-party copies, by taker</h3>{table(['Repo', 'Bodies taken', 'Attributed', 'Rate'], taker_rows)}<p class="small">Attributed means the copy's own text names a source, license or upstream repo. Apache 2.0 sources such as anthropics/skills require it.</p></div><div><h3>Largest third-party pairs</h3>{table(['Origin → taker', 'Bodies'], pair_rows)}</div></div></section>
 
@@ -309,7 +312,7 @@ def main():
     for n in ('report', 'clones', 'jev-risk', 'corpus'):
         (out / 'data' / f'{n}.json').write_text((Path(a.corpus) / f'{n}.json').read_text())
     for name, (title, body) in LEGAL.items():
-        (out / name).write_text(f'<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>{title} — whichskills.dev</title><meta name="robots" content="noindex"><link rel="stylesheet" href="/css/style.css?v=4"></head><body><header class="nav"><a class="brand" href="/"><span class="mark">w×</span> whichskills<span class="tld">.dev</span></a></header><main><section><h1>{title}</h1>{body}</section></main></body></html>')
+        (out / name).write_text(f'<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>{title} — whichskills.dev</title><meta name="robots" content="noindex"><link rel="stylesheet" href="/css/style.css?v=5"></head><body><header class="nav"><a class="brand" href="/"><span class="mark">w×</span> whichskills<span class="tld">.dev</span></a></header><main><section><h1>{title}</h1>{body}</section></main></body></html>')
     (out / 'robots.txt').write_text(f'User-agent: *\nAllow: /\nSitemap: {SITE}/sitemap.xml\n')
     (out / 'sitemap.xml').write_text(f'<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"><url><loc>{SITE}/</loc><lastmod>{SNAPSHOT}</lastmod></url></urlset>\n')
     (out / 'CNAME').write_text('whichskills.dev\n'); (out / '.nojekyll').write_text('')
