@@ -185,8 +185,8 @@ def validate_answers(data, questions):
     return answers
 
 
-def judge(skill, evidence, env, key, questions, overlap=None):
-    """overlap: list of {'with': name, 'score': float}, strongest first."""
+def judge(skill, evidence, env, key, questions, overlap=None, extra=None):
+    """overlap: list of {'with': name, 'score': float}, strongest first. extra: more top-level state, e.g. a user profile."""
     questions = prepare_questions(questions)
     if not key:
         raise ValueError('Jev credential unavailable. Configure the server environment or macOS Keychain.')
@@ -197,6 +197,8 @@ def judge(skill, evidence, env, key, questions, overlap=None):
              'evidence': evidence if evidence else 'not available for this tree',
              'overlap': {'strongest': (overlap or [{}])[0], 'candidates': candidates},
              'environment': {**env, 'other_skill_names': [n for n in env['other_skill_names'] if n != skill['id']]}}
+    if extra:
+        state.update(extra)
     if any(q.startswith('risk') for q in questions):  # full text only when a safety question asks for it; it is the expensive part
         state['skill'].update(body_full=skill.get('body_full', ''), files_text=skill.get('files_text', {}),
                               static_flags=skill.get('risk_flags', []), external_hosts=skill.get('external_hosts', []))

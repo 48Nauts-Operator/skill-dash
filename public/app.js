@@ -11,10 +11,11 @@ const icons = {
  skills:'<path d="M4 4h16v6H4zM4 14h16v6H4z"/><path d="M8 7h.01M8 17h.01"/>',
  decide:'<path d="M12 3 2 20h20L12 3Z"/><path d="M12 9v5m0 3h.01"/>',
  activity:'<path d="M3 12h4l3-8 4 16 3-8h4"/>',
+ find:'<circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/>',
  settings:'<circle cx="12" cy="12" r="3"/><path d="m10 2-1 3-3 1-3-1-1 4 2 2v3l-2 2 2 4 3-1 3 1 1 2 4-1 1-3 3-1 2-3-2-2v-3l1-3-4-2-2 1Z"/>',
 };
 const icon = name => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${icons[name]}</svg>`;
-const VIEWS = ['overview','skills','decide','activity','judges'];
+const VIEWS = ['overview','skills','decide','find','activity','judges'];
 let data = null, filter = 'all', query = '', page = 1, view = VIEWS.includes(location.hash.slice(1)) ? location.hash.slice(1) : 'overview', selected = new Set(), activeSkill = null, busy = false, returnFocus = null;
 if (view === 'decide') filter = 'undecided';
 let prefs = {provider:'jev',workers:3,limit:200};
@@ -93,12 +94,13 @@ function render() {
  const latencies=[...(recent?.latencies||[])].sort((a,b)=>a-b);const avg=latencies.length?latencies.reduce((a,b)=>a+b,0)/latencies.length:null;
  $('metrics').innerHTML=[['AVG. LATENCY',avg===null?'—':avg.toFixed(0),avg===null?'':'ms',recent?'Jev API · per skill':'No completed run yet'],['THROUGHPUT',recent?.elapsed_s?(recent.completed/recent.elapsed_s).toFixed(2):'—','skills/s','Batch wall time, including retries'],['TOKENS USED',recent?fmt((recent.input_tokens||0)+(recent.output_tokens||0)):'—','','Measured from API usage'],['DECIDED',total?`${decided}`:'—',total?`/ ${total}`:'','Keep, rewrite, merge or delete'],['NEVER INVOKED',data.scan.transcripts?`${never}`:'—',data.scan.transcripts?`/ ${total}`:'',data.scan.since?`Since ${date(data.scan.since)} · ${fmt(data.scan.transcripts)} transcripts`:noEvidence()?'No transcript evidence for this tree':'Scan pending']].map(([label,n,unit,caption])=>`<div class="metric"><div class="metric-label">${label}</div><div class="metric-number">${n} <small>${unit}</small></div><div class="metric-caption">${caption}</div></div>`).join('');
  renderTable(actions,{never,undecided,decided});renderActivity();
- $('nav').innerHTML=[['overview','Overview'],['skills','Skills'],['decide','Decide'],['judges','Judges'],['activity','Run history']].map(([k,n])=>`<button class="nav-button ${view===k?'active':''}" data-view="${k}" aria-label="${n}" title="${n}" ${view===k?'aria-current="page"':''}>${icon(k)}</button>`).join('');
- $('page-title').textContent=view==='judges'?'Judges.':view==='decide'?'Your call.':view==='activity'?'Every run, accounted for.':view==='skills'?'Everything, in its place.':'Fewer skills. Sharper triggers.';
- $('page-description').textContent=view==='judges'?'Add a section, choose Choice, Noul or Score, and tell it what to look for.':view==='decide'?'Judged skills waiting for a keep, rewrite, merge or delete.':view==='activity'?'Actual results, latency and usage. No invented numbers.':'Decide what to keep, rewrite, merge or delete, on evidence.';
+ $('nav').innerHTML=[['overview','Overview'],['skills','Skills'],['decide','Decide'],['find','Find skills'],['judges','Judges'],['activity','Run history']].map(([k,n])=>`<button class="nav-button ${view===k?'active':''}" data-view="${k}" aria-label="${n}" title="${n}" ${view===k?'aria-current="page"':''}>${icon(k)}</button>`).join('');
+ $('page-title').textContent=view==='judges'?'Judges.':view==='decide'?'Your call.':view==='find'?'What is missing.':view==='activity'?'Every run, accounted for.':view==='skills'?'Everything, in its place.':'Fewer skills. Sharper triggers.';
+ $('page-description').textContent=view==='judges'?'Add a section, choose Choice, Noul or Score, and tell it what to look for.':view==='decide'?'Judged skills waiting for a keep, rewrite, merge or delete.':view==='find'?'Skills from the public corpus that fit this tree, judged on their full text against your profile.':view==='activity'?'Actual results, latency and usage. No invented numbers.':'Decide what to keep, rewrite, merge or delete, on evidence.';
  $('judges-section').hidden=view!=='judges';
- $('dashboard-overview').hidden=view==='judges';$('metrics').hidden=view==='judges';
- $('inbox-section').hidden=view==='activity'||view==='judges';$('activity-section').hidden=view!=='activity';
+ $('dashboard-overview').hidden=view==='judges'||view==='find';$('metrics').hidden=view==='judges'||view==='find';
+ $('inbox-section').hidden=view==='activity'||view==='judges'||view==='find';$('activity-section').hidden=view!=='activity';$('find-section').hidden=view!=='find';
+ renderFind();
  document.querySelector('.heading-actions').hidden=view==='judges';
 }
 function navigate(next) {
@@ -118,6 +120,18 @@ function renderTable(actions,counts) {
  $('select-page').checked=visible.length>0&&visible.every(x=>selected.has(x.id));$('select-page').indeterminate=visible.some(x=>selected.has(x.id))&&!$('select-page').checked;
  $('selection-bar').hidden=selected.size===0;$('selection-bar').innerHTML=`<span>${selected.size} selected</span><button class="text-button" id="select-all-matching">Select all ${rows.length} matching</button><button class="text-button" id="clear-selection">Clear</button>`;
 }
+let findData=null, findLoadedAt='';
+async function renderFind() {
+ const r=data.recommend||{};
+ $('find-button').disabled=r.status==='running'||!data.config.jev_available||!!data.roots?.length;
+ $('find-status').textContent=r.status==='running'?`${r.stage==='fetching'?'Fetching candidate files':r.stage==='judging'?'Jev is reading':'Profiling'}… ${r.done||0} / ${r.total||0}`:r.status==='error'?r.error:r.status==='done'?`Last search ${date(r.finished_at)} · ${fmt(r.candidates)} candidates read · ${fmt(r.tokens)} tokens`:data.roots?.length?'Find works on your own tree; start without --roots.':'';
+ if(view!=='find')return;
+ if(r.status==='done'&&findLoadedAt!==r.finished_at){try{findData=await api('/api/recommend');findLoadedAt=r.finished_at;}catch{}}
+ const rows=(findData?.results||[]).filter(x=>x.fit!=null);
+ $('find-summary').textContent=findData?`Profile: ${findData.profile_summary.own_skills} own skills, most used ${findData.profile_summary.most_used.slice(0,5).join(', ')||'none'}${findData.with_prompts?`, ${findData.profile_summary.requests} recent prompts`:''}. Pool ${fmt(findData.pool)} unique corpus skills, ${findData.candidates} read by Jev.`:$('find-summary').textContent;
+ $('find-rows').innerHTML=rows.slice(0,60).map(x=>`<tr><td><a href="https://github.com/${esc(x.r)}/blob/${esc(x.c)}/${esc(x.p)}/SKILL.md"><b>${esc(x.n)}</b></a><br><small>${esc(x.r)}</small><br><span class="preview" style="white-space:normal">${esc(x.d)}</span></td><td>${scoreTag(x.fit)}<br><small>conf ${Math.round(x.fit_conf*100)}%</small></td><td class="confidence-cell">${Math.round(x.covered*100)}%</td><td style="max-width:320px;white-space:normal;font-size:11px;color:#bfb3a8">${esc(x.fit_legend?.[String(Math.round(x.fit))]||'')}</td><td>${x.f?`<span class="flag-badge">⚠ ${x.f}</span>`:'<small>clean</small>'}${x.j!=null?`<br><small>Jev risk ${x.j}</small>`:''}${x.cp?`<br><small>${x.cp} copies elsewhere</small>`:''}</td><td><code style="font-size:10px;white-space:normal">git clone --depth 1 https://github.com/${esc(x.r)} /tmp/${esc(x.r.split('/')[1])} && cp -r /tmp/${esc(x.r.split('/')[1])}/${esc(x.p)} ~/.claude/skills/${esc(x.n)}</code></td></tr>`).join('')||'<tr><td colspan="6" class="empty"><strong>No search yet.</strong>Press Find skills. Nothing is written to your tree.</td></tr>';
+}
+$('find-button').onclick=async()=>{try{await api('/api/recommend',{k:Number($('find-k').value),with_prompts:$('find-prompts').checked});await refresh();toast('Search started. Candidates are fetched from GitHub at their pinned commits, then read by Jev.');}catch(e){toast(e.message,true);}};
 function renderActivity() {
  $('activity-list').innerHTML=data.runs.map(r=>`<div class="activity-row"><div>Jev · live API<small>${esc(r.id)} · ${Object.keys(r.questions||{}).map(judgmentTitle).map(esc).join(", ")}</small></div><div>${fmt(r.succeeded)} succeeded · ${fmt(r.failed)} failed<small>${esc(r.status)} · ${r.total-r.completed} unprocessed</small></div><div>${r.elapsed_s.toFixed(2)} seconds<small>${r.workers} concurrent workers</small></div><div>${date(r.started_at)}<small>${fmt(r.input_tokens+r.output_tokens)} tokens</small></div></div>`).join('')||'<div class="empty"><strong>A clean slate.</strong>Run your first batch to see measured results here.</div>';
 }

@@ -18,6 +18,7 @@ from urllib.parse import urlparse, parse_qs
 from engine import QUESTIONS, CONTENT_QUESTIONS, RISK_QUESTIONS, PRESETS, POLICY, prepare_questions, judge, credential, environment
 from skills import load_skills, evidence
 from store import Store, DECISIONS, stamp
+import recommend
 
 ROOT = Path(__file__).resolve().parent
 AUDIT = Path.home() / '.claude/skills/skill-audit/scripts/audit.py'
@@ -36,6 +37,7 @@ class Application:
         self.paused = self.cancelled = False
         self.evidence, self.scan = {}, {'status': 'idle'}
         self.overlap = {'status': 'idle'}
+        self.rec = {'status': 'idle'}
         self.rescan()
 
     # --- skills + evidence -------------------------------------------------
@@ -116,6 +118,33 @@ class Application:
         with self.lock:
             self.overlap = {'status': 'done', 'finished_at': stamp()} if merged and not errors else {'status': 'error', 'error': ' | '.join(errors)[-240:] or 'no pairs'}
 
+    # --- find skills for this tree ---------------------------------------------
+    def start_recommend(self, payload):
+        if not self.key: raise ValueError('Jev credential is not configured on the server')
+        if self.roots: raise ValueError('Find works on your own tree; start the server without --roots')
+        k = payload.get('k', 200)
+        if isinstance(k, bool) or not isinstance(k, int) or not 20 <= k <= 500: raise ValueError('Candidates must be 20–500')
+        with self.lock:
+            if self.rec.get('status') == 'running': raise ValueError('A search is already running')
+            if self.scan.get('status') == 'running': raise ValueError('Evidence scan still running; wait a moment')
+            self.rec = {'status': 'running', 'done': 0, 'total': k, 'stage': 'profile', 'started_at': stamp(), 'with_prompts': bool(payload.get('with_prompts'))}
+        threading.Thread(target=self._recommend, args=(bool(payload.get('with_prompts')), k), daemon=True).start()
+
+    def _recommend(self, with_prompts, k):
+        def progress(done, total, stage):
+            with self.lock: self.rec.update(done=done, total=total, stage=stage)
+        try:
+            out = recommend.run(self, with_prompts=with_prompts, k=k, progress=progress)
+            out['finished_at'] = stamp()
+            (self.data_dir / 'recommend.json').write_text(json.dumps(out))
+            with self.lock: self.rec = {'status': 'done', 'finished_at': out['finished_at'], 'candidates': out['candidates'], 'tokens': out['tokens']}
+        except Exception as e:
+            with self.lock: self.rec = {'status': 'error', 'error': (str(e) if isinstance(e, ValueError) else 'Search failed: ' + type(e).__name__)[:240]}
+
+    def recommendations(self):
+        p = self.data_dir / 'recommend.json'
+        return json.loads(p.read_text()) if p.exists() else None
+
     def state(self):
         with self.lock:
             pairs = self.overlap_pairs()
@@ -125,7 +154,7 @@ class Application:
             skills = [{**{k: v for k, v in s.items() if k not in heavy}, 'evidence': self.evidence.get(s['id'], None),
                        'overlap': (top.get(okey(s)) or [None])[0], 'overlaps': top.get(okey(s), [])} for s in self.store.skills()]
             return {'skills': skills, 'runs': self.store.runs(), 'job': dict(self.job) if self.job else None,
-                    'scan': dict(self.scan), 'overlap': {**self.overlap, 'pairs': len(pairs)}, 'roots': self.roots,
+                    'scan': dict(self.scan), 'overlap': {**self.overlap, 'pairs': len(pairs)}, 'roots': self.roots, 'recommend': dict(self.rec),
                     'config': {'jev_available': bool(self.key), 'questions': CONTENT_QUESTIONS if self.roots else QUESTIONS,
                                'usage_questions': QUESTIONS, 'content_questions': CONTENT_QUESTIONS, 'risk_questions': RISK_QUESTIONS, 'presets': PRESETS,
                                'policy': POLICY, 'max_workers': 6, 'decisions': list(DECISIONS)}}
@@ -238,6 +267,7 @@ def handler(app, port):
                 skills = app.state()['skills']
                 return self.send(200, {'exported_at': stamp(), 'decisions': [{'id': s['id'], **s['decision']} for s in skills if s['decision']],
                                        'skills': [{k: s.get(k) for k in ('id', 'kind', 'path', 'description', 'evidence', 'overlap', 'result', 'decision', 'error')} for s in skills]})
+            if path == '/api/recommend': return self.send(200, app.recommendations() or {'results': []})
             if path == '/api/predictions': return self.send(200, app.store.predictions(qid))
             if path == '/api/decisions': return self.send(200, app.store.decisions(qid))
             if path == '/health': return self.send(200, {'ok': True})
@@ -256,6 +286,7 @@ def handler(app, port):
                 if self.path == '/api/run': return self.send(200, app.start(data))
                 if self.path == '/api/control': app.control(data.get('action'))
                 elif self.path == '/api/decide': app.store.decide(data.get('id', ''), data.get('decision', ''), data.get('note', ''))
+                elif self.path == '/api/recommend': app.start_recommend(data)
                 elif self.path == '/api/rescan': app.rescan()
                 elif self.path == '/api/overlap': app.run_overlap()
                 else: return self.send(404, {'error': 'Not found'})
