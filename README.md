@@ -4,11 +4,18 @@ Judge a tree of Claude Code and Codex skills with [Jev](https://typesafe.ai), Ty
 
 Python standard library and SQLite, no dependencies, no build step. Runs on 127.0.0.1 only. Nothing leaves your machine except the Jev calls you choose to make.
 
+## You need
+
+- **A Jev API key.** Sign in at [console.typesafe.ai](https://console.typesafe.ai/), create a key, export it as `TYPESAFE_API_KEY` (on macOS the Keychain entry service `xnaut`, account `plugin/typesafe/TYPESAFE_API_KEY` also works). Docs: [docs.typesafe.ai](https://docs.typesafe.ai/). Jev was in early access when this was built; hello@typesafe.ai is the listed contact if you have no access yet. The loader, the evidence scan and the static safety pre-scan run without a key; judgments and the overlap audit need one.
+- **Python 3.** Standard library only.
+
+Cost, for orientation: TypeSafe listed $42 per billion input tokens on 2026-09-20. A content-only pass over 78 skills is well under a cent; the full-text safety read of 545 bodies for whichskills.dev was about 18 cents. The dashboard shows the token count of every run.
+
 ## Quick start
 
 ```sh
 git clone https://github.com/48Nauts-Operator/skill-dash && cd skill-dash
-export TYPESAFE_API_KEY=...          # or macOS Keychain service xnaut, account plugin/typesafe/TYPESAFE_API_KEY
+export TYPESAFE_API_KEY=...
 python3 server.py --port 3345       # your own ~/.claude/skills tree plus enabled plugins
 python3 server.py --port 3346 --roots ~/some/skills-repo   # any repo of SKILL.md files
 ```

@@ -315,10 +315,18 @@ def page(corpus, report, clones, risk):
 
 <section id="run" class="run"><div class="eyebrow">WHAT TO DO NEXT</div><h2>Run it on your own skills before you download more</h2>
 <p class="lede">This census started with one tree of 78 skills that nobody could account for. Most Claude Code and Codex users have that folder: installed from a list with ten thousand stars, never read, never removed, half of it twins. The corpus above is that folder at scale. The fix is not another list. It is a baseline of what you already have, and the pipeline behind this page gives you one in a few minutes, locally.</p>
+<div class="cols exp"><div>
+<h3>You need two things</h3>
+<p><b>A Jev API key.</b> Jev is TypeSafe's typed-judgment model; the dashboard calls it for every judgment, and nothing else leaves your machine. Sign in at <a href="https://console.typesafe.ai/" rel="noopener">console.typesafe.ai</a>, create a key, and export it as <code>TYPESAFE_API_KEY</code>. On macOS the dashboard also reads it from the Keychain (service <code>xnaut</code>, account <code>plugin/typesafe/TYPESAFE_API_KEY</code>). The API docs are at <a href="https://docs.typesafe.ai/" rel="noopener">docs.typesafe.ai</a>; Jev was in early access when we ran this, so if you have no access yet, <a href="mailto:hello@typesafe.ai">hello@typesafe.ai</a> is the listed contact. The static pre-scan, the loader and the evidence scan run without a key; the judgments and the overlap audit need one.</p>
+<p><b>Python 3.</b> Standard library only, no packages, no build step, SQLite for the local store.</p>
+</div><div>
+<h3>What it costs</h3>
+<p>TypeSafe lists Jev at $42 per billion input tokens (their price page on {SNAPSHOT}; output tokens not listed). At that price the full-text safety read of 545 bodies above, 4.2 million tokens, comes to about 18 cents, and a content-only pass over a 78-skill tree is well under a cent. Every run shows its token count in the dashboard, so you see what you spend.</p>
 <pre>git clone https://github.com/48Nauts-Operator/skill-dash &amp;&amp; cd skill-dash
-export TYPESAFE_API_KEY=...   # typesafe.ai
-python3 server.py --port 3345</pre>
-<p class="cta-line"><a class="button" href="https://github.com/48Nauts-Operator/skill-dash">github.com/48Nauts-Operator/skill-dash</a><span class="small">MIT. Python standard library only. No account, no upload; nothing leaves your machine except the Jev calls you choose to make.</span></p>
+export TYPESAFE_API_KEY=...
+python3 server.py --port 3345      # then open http://localhost:3345</pre>
+<p class="cta-line"><a class="button" href="https://github.com/48Nauts-Operator/skill-dash">github.com/48Nauts-Operator/skill-dash</a><span class="small">MIT. No account with us, no upload, no telemetry.</span></p>
+</div></div>
 <div class="grid three">
 <article class="card"><div class="eyebrow">1 · BASELINE YOUR TREE</div><h3>See what you actually have</h3><p>Every skill and plugin manifest in <code>~/.claude/skills</code> as a row. How often you invoked each one, from your own transcripts. Which two are twins. Which descriptions are too vague for the agent to ever pick. Which ones repeat what your CLAUDE.md already says. The same static safety pre-scan we ran on 18,041 skills, free, and the Jev read on anything it flags.</p><p class="why"><b>Why it matters.</b> A skill only helps if the agent picks it at the right moment. Fifteen that trigger reliably beat two hundred in a folder, and you cannot know which fifteen without measuring.</p></article>
 <article class="card"><div class="eyebrow">2 · VET A REPO FIRST</div><h3>Judge a list before you install from it</h3><p><code>python3 server.py --roots path/to/repo</code> loads any tree of SKILL.md files, runs the overlap audit, and asks Jev which skills duplicate each other, which are clear enough to trigger, and which are worth having on content alone. That is the exact run that produced every row on this page.</p><p class="why"><b>Why it matters.</b> Stars told us nothing about duplication, clarity or safety. Ten minutes with the repo open in the dashboard tells you more than the README does.</p></article>
