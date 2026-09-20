@@ -56,4 +56,4 @@ python3 scripts/build_site.py --corpus . --out website                 # the sta
 
 ## Status
 
-An experiment by [48Nauts](https://48nauts.com). Site and data: [whichskills-website](https://github.com/48Nauts-Operator/whichskills-website). Not a security scanner; use one before installing anything. MIT license.
+An experiment by [48Nauts](https://48nauts.com). Not a security scanner; use one before installing anything. MIT license.
