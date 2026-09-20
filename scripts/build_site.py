@@ -252,7 +252,7 @@ def page(corpus, report, clones, risk):
 <link rel="canonical" href="{SITE}/"><meta name="theme-color" content="#0c0a09">
 <meta property="og:title" content="Which skills are worth installing?"><meta property="og:description" content="{esc(desc)}"><meta property="og:url" content="{SITE}/"><meta property="og:image" content="{SITE}/og.png"><meta property="og:image:width" content="1200"><meta property="og:image:height" content="630"><meta property="og:image:alt" content="Which skills are worth installing? 157 repos, 18,041 skills read, 36% identical copies, 0 read as malware."><meta property="og:type" content="website">
 <meta name="twitter:card" content="summary_large_image"><meta name="twitter:title" content="whichskills.dev"><meta name="twitter:description" content="{esc(desc)}"><meta name="twitter:image" content="{SITE}/og.png">
-<link rel="icon" href="/favicon.svg"><link rel="stylesheet" href="/css/style.css?v=13"><script defer src="/js/main.js?v=5"></script>
+<link rel="icon" href="/favicon.svg"><link rel="stylesheet" href="/css/style.css?v=14"><script defer src="/js/main.js?v=5"></script>
 <script defer src="https://wave.21nauts.com/script.js" data-website-id="ce023ab7-f50a-4ff0-ae87-e8909d6b257f"></script>
 <script type="application/ld+json">{dataset_ld}</script><script type="application/ld+json">{faq_ld}</script>
 </head><body>
@@ -349,7 +349,7 @@ def index_page(report):
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Skill index · whichskills.dev</title><meta name="description" content="{esc(desc)}"><link rel="canonical" href="{SITE}/skills.html"><meta name="theme-color" content="#0c0a09">
 <meta property="og:title" content="Skill index · whichskills.dev"><meta property="og:description" content="{esc(desc)}"><meta property="og:url" content="{SITE}/skills.html"><meta property="og:image" content="{SITE}/og.png"><meta name="twitter:card" content="summary_large_image">
-<link rel="icon" href="/favicon.svg"><link rel="stylesheet" href="/css/style.css?v=13"><script defer src="/js/index.js?v=1"></script>
+<link rel="icon" href="/favicon.svg"><link rel="stylesheet" href="/css/style.css?v=14"><script defer src="/js/index.js?v=1"></script>
 <script defer src="https://wave.21nauts.com/script.js" data-website-id="ce023ab7-f50a-4ff0-ae87-e8909d6b257f"></script>
 </head><body>
 <header class="nav"><a class="brand" href="/"><span class="mark">w×</span> whichskills<span class="tld">.dev</span></a><nav><a href="/#experiment">Experiment</a><a href="/#findings">Findings</a><a href="/#clones">Clones</a><a href="/#safety">Safety read</a><a href="/#repos">Repos</a><a href="/skills.html" aria-current="page">Index</a><a href="/#run">Run it yourself</a><a class="gh" href="https://github.com/48Nauts-Operator/skill-dash" aria-label="skill-dash on GitHub"><svg viewBox="0 0 16 16" width="18" height="18" aria-hidden="true" fill="currentColor"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.01 8.01 0 0 0 16 8c0-4.42-3.58-8-8-8z"/></svg></a></nav></header>
@@ -389,7 +389,7 @@ def main():
             (out / 'data' / f'{n}.json').write_text(src.read_text())
     (out / 'skills.html').write_text(index_page(report))
     for name, (title, body) in LEGAL.items():
-        (out / name).write_text(f'<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>{title} · whichskills.dev</title><meta name="robots" content="noindex"><link rel="stylesheet" href="/css/style.css?v=13"></head><body><header class="nav"><a class="brand" href="/"><span class="mark">w×</span> whichskills<span class="tld">.dev</span></a></header><main><section><h1>{title}</h1>{body}</section></main></body></html>')
+        (out / name).write_text(f'<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>{title} · whichskills.dev</title><meta name="robots" content="noindex"><link rel="stylesheet" href="/css/style.css?v=14"></head><body><header class="nav"><a class="brand" href="/"><span class="mark">w×</span> whichskills<span class="tld">.dev</span></a></header><main><section><h1>{title}</h1>{body}</section></main></body></html>')
     (out / 'robots.txt').write_text(f'User-agent: *\nAllow: /\nSitemap: {SITE}/sitemap.xml\n')
     (out / 'sitemap.xml').write_text(f'<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"><url><loc>{SITE}/</loc><lastmod>{SNAPSHOT}</lastmod></url><url><loc>{SITE}/skills.html</loc><lastmod>{SNAPSHOT}</lastmod></url></urlset>\n')
     (out / 'CNAME').write_text('whichskills.dev\n'); (out / '.nojekyll').write_text('')

@@ -50,7 +50,7 @@ def main():
         except Exception as e:
             print(f'{repo}: {e}', file=sys.stderr); continue
         for s in items:
-            desc = ' '.join(s['description'].split())
+            desc = ' '.join(s['description'].replace('\\"', '"').replace("\\'", "'").split())
             row = {'n': s['name'], 'r': repo, 'p': s['id'], 'c': commit[:12], 'k': 'm' if s['kind'] == 'manifest' else 's',
                    'd': desc[:EXCERPT] + ('…' if len(desc) > EXCERPT else ''), 'f': len(s['risk_flags']), 'b': s['body_chars']}
             if (repo, s['id']) in risk:
