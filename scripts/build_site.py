@@ -229,17 +229,27 @@ def page(corpus, report, clones, risk):
 <link rel="canonical" href="{SITE}/"><meta name="theme-color" content="#0c0a09">
 <meta property="og:title" content="Which skills are worth installing?"><meta property="og:description" content="{esc(desc)}"><meta property="og:url" content="{SITE}/"><meta property="og:image" content="{SITE}/og.png"><meta property="og:type" content="website">
 <meta name="twitter:card" content="summary_large_image"><meta name="twitter:title" content="whichskills.dev"><meta name="twitter:description" content="{esc(desc)}"><meta name="twitter:image" content="{SITE}/og.png">
-<link rel="icon" href="/favicon.svg"><link rel="stylesheet" href="/css/style.css?v=3"><script defer src="/js/main.js?v=2"></script>
+<link rel="icon" href="/favicon.svg"><link rel="stylesheet" href="/css/style.css?v=4"><script defer src="/js/main.js?v=2"></script>
 <script defer src="https://wave.21nauts.com/script.js" data-website-id="ce023ab7-f50a-4ff0-ae87-e8909d6b257f"></script>
 <script type="application/ld+json">{dataset_ld}</script><script type="application/ld+json">{faq_ld}</script>
 </head><body>
-<header class="nav"><a class="brand" href="/"><span class="mark">w×</span> whichskills<span class="tld">.dev</span></a><nav><a href="#findings">Findings</a><a href="#fingerprints">Fingerprints</a><a href="#clones">Clones</a><a href="#safety">Safety read</a><a href="#repos">Repos</a><a href="#method">Method</a><a href="https://github.com/48Nauts-Operator/whichskills-website">GitHub</a></nav></header>
+<header class="nav"><a class="brand" href="/"><span class="mark">w×</span> whichskills<span class="tld">.dev</span></a><nav><a href="#experiment">Experiment</a><a href="#findings">Findings</a><a href="#fingerprints">Fingerprints</a><a href="#clones">Clones</a><a href="#safety">Safety read</a><a href="#repos">Repos</a><a href="#method">Method</a><a href="https://github.com/48Nauts-Operator/whichskills-website">GitHub</a></nav></header>
 <main>
 <section class="hero"><div class="eyebrow">AN EXPERIMENT BY 48NAUTS · JUDGED BY JEV · SNAPSHOT {SNAPSHOT}</div>
 <h1>Which skills are worth installing?</h1>
 <p class="lede">We pulled the 200 most-starred GitHub repos that publish Claude Code and Codex skills, read all {total_skills:,} of them the same way, and published every receipt. Not a scanner. A census with evidence: who copied whom, what a one-second typed judge flags, and what a human found on reading the flagged files.</p>
 <div class="stats">{stat(len(report), 'repos with skills')}{stat(f'{total_skills:,}', 'skills read')}{stat(total_manifests, 'plugin manifests')}{stat(f'{pct_copies:.0%}' if pct_copies else '—', 'byte-identical copies')}{stat(len(risk), 'bodies read by Jev')}{stat(0, 'malware aimed at the installing user')}</div>
 <p class="note">Every row links to the file at the commit we read. Numbers are computed from the published data files, never typed in. Same-owner mirrors are labelled as such. Stars are shown and never ranked on.</p></section>
+
+<section id="experiment"><div class="eyebrow">THE EXPERIMENT</div><h2>Can a one-second typed judge audit eighteen thousand skills?</h2>
+<div class="cols exp"><div>
+<p><b>The question we started with</b> was smaller: of the 78 skills in one developer's own Claude Code tree, which deserved to stay? Usage counts said almost none were ever invoked. Reading them said most were fine and several were twins. Neither answer was checkable by anyone else. So we asked whether the same judgment could be made at scale, with receipts, and pointed the method at the public corpus.</p>
+<p><b>The judge is Jev</b>, a small typed-judgment model from <a href="https://typesafe.ai" rel="noopener">TypeSafe</a>. Instead of a paragraph, Jev answers a fixed question about a piece of state with a probability distribution: a yes-probability, a choice among named options with a confidence, or a score on a described scale. One call takes about a second and a few thousand tokens, and it returns the same shape every time, so the answer can sit in a table and be compared across 18,041 rows. The questions we asked are published verbatim in the <a href="#method">method</a>. Jev was not fine-tuned or prompted with any repo in mind.</p>
+</div><div>
+<p><b>What Jev is not.</b> It is not a security scanner and we did not use it as one. NVIDIA's <a href="https://github.com/NVIDIA/skillspector" rel="noopener">SkillSpector</a> has 71 rules and an LLM stage for that job. Here Jev reads the bodies a cheap static pass flags, says how much the text reads as harmful and of what kind, and a person reads what Jev ranks highest. Three stages, each cheaper than the next is expensive, each recorded.</p>
+<p><b>What we learned about the judge.</b> Asked a soft question ("recommend an action") it defaults to keep; asked a decisive one it discriminates. Given full text it found the one pattern our regexes had no class for, a hook telling the agent to skip user confirmation, at the highest confidence of the run. It scores density of intent, so a 444-byte fixture that is entirely payload outscores a 65 KB playbook with one example in it, which is worth knowing when you read the safety table. And 545 full-text reads cost 4.2 million tokens and 93 seconds, which is what makes a census like this repeatable weekly instead of once.</p>
+<p class="small">Run by <a href="https://48nauts.com">48Nauts</a>. TypeSafe did not commission, review or fund this page; Jev was used through its public API like any other customer would. Pipeline, questions and data are open so the run can be repeated, disputed or improved.</p>
+</div></div></section>
 
 <section id="findings"><div class="eyebrow">WHAT WE FOUND</div><h2>Four things the snapshot says</h2><div class="grid">{findings_html}</div></section>
 
@@ -299,7 +309,7 @@ def main():
     for n in ('report', 'clones', 'jev-risk', 'corpus'):
         (out / 'data' / f'{n}.json').write_text((Path(a.corpus) / f'{n}.json').read_text())
     for name, (title, body) in LEGAL.items():
-        (out / name).write_text(f'<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>{title} — whichskills.dev</title><meta name="robots" content="noindex"><link rel="stylesheet" href="/css/style.css?v=3"></head><body><header class="nav"><a class="brand" href="/"><span class="mark">w×</span> whichskills<span class="tld">.dev</span></a></header><main><section><h1>{title}</h1>{body}</section></main></body></html>')
+        (out / name).write_text(f'<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>{title} — whichskills.dev</title><meta name="robots" content="noindex"><link rel="stylesheet" href="/css/style.css?v=4"></head><body><header class="nav"><a class="brand" href="/"><span class="mark">w×</span> whichskills<span class="tld">.dev</span></a></header><main><section><h1>{title}</h1>{body}</section></main></body></html>')
     (out / 'robots.txt').write_text(f'User-agent: *\nAllow: /\nSitemap: {SITE}/sitemap.xml\n')
     (out / 'sitemap.xml').write_text(f'<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"><url><loc>{SITE}/</loc><lastmod>{SNAPSHOT}</lastmod></url></urlset>\n')
     (out / 'CNAME').write_text('whichskills.dev\n'); (out / '.nojekyll').write_text('')
