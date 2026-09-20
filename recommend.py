@@ -78,7 +78,12 @@ def candidates(rows, own_skills, prof, k=200):
                 s += math.log1p(w) * c[t] * math.log((n + 1) / (df[t] + 1))
         return s / math.sqrt(len(d) + 1)
     ranked = sorted(zip(pool, docs), key=lambda x: -score(x[1]))
-    return [r for r, _ in ranked[:k]], len(pool), own_hashes
+    out, per_repo = [], Counter()
+    for r, _ in ranked:  # ponytail: cap per repo so one 7,000-skill aggregator cannot fill the whole list
+        if per_repo[r['r']] >= 8: continue
+        per_repo[r['r']] += 1; out.append(r)
+        if len(out) >= k: break
+    return out, len(pool), own_hashes
 
 
 def fetch_body(r, cap=8000):
@@ -104,7 +109,14 @@ def run(app, with_prompts=False, k=200, workers=4, progress=None):
     if progress: progress(0, len(cands), 'fetching')
     with ThreadPoolExecutor(max_workers=8) as pool:
         bodies = list(pool.map(fetch_body, cands))
-    cands = [dict(r, body=b) for r, b in zip(cands, bodies) if b and hashlib.sha256(re.sub(r'\s+', ' ', b).strip().lower().encode()).hexdigest()[:16] not in own_hashes]
+    seen, deduped = {}, []
+    for r, b in zip(cands, bodies):
+        if not b: continue
+        h = hashlib.sha256(re.sub(r'\s+', ' ', b).strip().lower().encode()).hexdigest()[:16]
+        if h in own_hashes: continue
+        if h in seen: seen[h]['dupes'] += 1; continue  # same body again, inside a repo or across the cut
+        seen[h] = dict(r, body=b, dupes=0); deduped.append(seen[h])
+    cands = deduped
     results, done = [], 0
     def one(r):
         skill = {'id': r['n'], 'kind': 'candidate', 'plugin': None, 'description': r['d'], 'body_excerpt': r['body'][:2500], 'scripts': [],
@@ -119,7 +131,9 @@ def run(app, with_prompts=False, k=200, workers=4, progress=None):
         for res in pool.map(one, cands):
             results.append(res); done += 1
             if progress: progress(done, len(cands), 'judging')
-    results.sort(key=lambda r: (-(r.get('fit') or 0), r.get('covered', 1)))
+    for r in results:
+        if r.get('fit') is not None: r['gap'] = round(r['fit'] * (1 - r['covered']), 2)  # fit discounted by the chance you already have it
+    results.sort(key=lambda r: (-(r.get('gap') or -1), -(r.get('fit') or 0)))
     tokens = sum(v for r in results for kk, v in (r.get('usage') or {}).items() if kk.endswith('tokens') and isinstance(v, int))
     return {'results': [{kk: v for kk, v in r.items() if kk not in ('body', 'usage')} for r in results], 'pool': pool_size, 'candidates': len(cands),
             'with_prompts': with_prompts, 'tokens': tokens, 'profile_summary': {'own_skills': len(own), 'most_used': prof['most_used'], 'requests': len(prof.get('recent_requests', []))}}

@@ -47,6 +47,10 @@ NODE_PATH=/path/to/node_modules/with/playwright node tests/screenshot.mjs   # he
 
 Jev credential: `TYPESAFE_API_KEY` or macOS Keychain service `xnaut`, account `plugin/typesafe/TYPESAFE_API_KEY`. Model `jev-1.13.0`, override with `TYPESAFE_MODEL`.
 
+## Find what is missing
+
+The Find view (own tree only, not under `--roots`) profiles your tree locally: your CLAUDE.md, your skills and how often you use them, and, only if you tick the box, the opening prompt of your last 60 sessions. It downloads the public index from whichskills.dev, drops copies, twins by name or body, and bodies at risk 1.5 or above, cuts to the closest 200 by TF-IDF from your profile, fetches each candidate's SKILL.md at its pinned commit, and asks Jev two questions per candidate: fit against your profile (0 to 3) and whether one of your own skills already does the job. Ranked by fit discounted by twin probability. Each row shows the install command; the tool never writes to your tree. About 2M tokens per run.
+
 ## Corpus tools
 
 The same loader, pre-scan and judge run at corpus scale for [whichskills.dev](https://whichskills.dev):
