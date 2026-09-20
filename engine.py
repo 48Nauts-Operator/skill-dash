@@ -44,6 +44,25 @@ QUESTIONS = {
                             'delete': 'Remove it; nothing of value is lost.',
                             'unclear': 'Evidence is insufficient to recommend.'}},
 }
+CONTENT_QUESTIONS = {
+    'useful': {'type': 'score', 'instructions': POLICY +
+               'Judge this skill on its content alone: does the description and body give an agent a concrete, repeatable procedure it would not produce on its own?',
+               'criteria': ['Adds nothing an agent would not do unprompted; generic advice or a restatement of common practice.',
+                            'Marginal: one useful idea wrapped in filler, or a thin pointer to something else.',
+                            'Useful: a concrete procedure, checklist or tooling with real mechanics and clear steps.',
+                            'Essential: encodes hard-won, non-obvious procedure or traps an agent would otherwise fall into.']},
+    'duplicate': {'type': 'choice', 'instructions': POLICY +
+                  'Does another skill do the same job? overlap.candidates names up to three neighbours by description similarity; '
+                  'judge the actual job, not shared vocabulary. Pick the one it duplicates, or none.',
+                  'criteria': {'partner_1': 'Duplicates the skill named in overlap.candidates.partner_1.',
+                               'partner_2': 'Duplicates the skill named in overlap.candidates.partner_2.',
+                               'partner_3': 'Duplicates the skill named in overlap.candidates.partner_3.',
+                               'none': 'Distinct job, or no candidates given.'}},
+    'clarity': QUESTIONS['clarity'],
+    'action': {'type': 'choice', 'instructions': POLICY + 'Recommend what to do with this skill judged on content alone. Be decisive: '
+               'merge when it duplicates a neighbour, delete when it adds nothing, rewrite_description when the body is good but the trigger is not.',
+               'criteria': QUESTIONS['action']['criteria']},
+}
 PRESETS = {
     'third_party_fit': {'type': 'noul', 'instructions': 'Is this skill an imported third-party skill whose assumptions (other tools, other repos, other companions) do not fit this user\'s environment as described in claude_md_excerpt?'},
     'overlap_severity': {'type': 'score', 'instructions': 'Rate how badly this skill competes with other skills for the same requests, judging the description against other_skill_names.',
@@ -146,13 +165,16 @@ def validate_answers(data, questions):
 
 
 def judge(skill, evidence, env, key, questions, overlap=None):
+    """overlap: list of {'with': name, 'score': float}, strongest first."""
     questions = prepare_questions(questions)
     if not key:
         raise ValueError('Jev credential unavailable. Configure the server environment or macOS Keychain.')
     started = time.monotonic()
+    candidates = {f'partner_{i + 1}': o['with'] for i, o in enumerate((overlap or [])[:3])}
     state = {'skill': {k: skill[k] for k in ('id', 'kind', 'plugin', 'description', 'body_excerpt', 'scripts',
                                              'imported_from', 'disable_model_invocation', 'installed_at')},
-             'evidence': evidence, 'overlap': overlap or {},
+             'evidence': evidence if evidence else 'not available for this tree',
+             'overlap': {'strongest': (overlap or [{}])[0], 'candidates': candidates},
              'environment': {**env, 'other_skill_names': [n for n in env['other_skill_names'] if n != skill['id']]}}
     payload = {'model': os.getenv('TYPESAFE_MODEL', 'jev-1.13.0'), 'state': state, 'questions': questions}
     req = urllib.request.Request(API, json.dumps(payload).encode(), {'Authorization': 'Bearer ' + key, 'Content-Type': 'application/json'})
@@ -169,6 +191,6 @@ def judge(skill, evidence, env, key, questions, overlap=None):
         except (urllib.error.URLError, TimeoutError):
             raise ValueError('Jev request timed out or could not connect; retry this skill') from None
     answers = validate_answers(data, questions)
-    return {'answers': answers, 'model': str(data.get('model', 'jev'))[:120], 'usage': data.get('usage', {}),
+    return {'answers': answers, 'candidates': candidates, 'model': str(data.get('model', 'jev'))[:120], 'usage': data.get('usage', {}),
             'provider': 'jev', 'elapsed_ms': round((time.monotonic() - started) * 1000, 2),
             'question_version': question_version(questions), 'questions': questions}

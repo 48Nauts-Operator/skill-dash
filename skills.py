@@ -58,11 +58,12 @@ def enabled_plugins():
     return out
 
 
-def read_skill(path, plugin=None):
+def read_skill(path, plugin=None, root=None):
     text = path.read_text(errors='replace')
     fm, body = frontmatter(text)
     base = fm.get('name') or path.parent.name
     folder = path.parent
+    rel = str(folder.relative_to(root)) if root else base
     src = re.search(r'Installed from ([^,\n]+)', text) or re.search(r'_?Source: (https?://\S+)', text)
     scripts = sorted({f.name for f in folder.rglob('*') if f.is_file() and f.suffix in SCRIPT_SUFFIXES
                       and 'node_modules' not in f.parts and f.name not in GENERIC})
@@ -71,10 +72,10 @@ def read_skill(path, plugin=None):
     except ValueError:
         installed = folder.stat().st_mtime
     return {
-        'id': f'{plugin}:{base}' if plugin else base,
+        'id': f'{plugin}:{base}' if plugin else (rel if root else base),
         'name': base,
         'plugin': plugin,
-        'kind': 'plugin' if plugin else 'own',
+        'kind': 'plugin' if plugin else 'repo' if root else 'own',
         'description': fm.get('description', ''),
         'path': str(folder),
         'symlink': folder.is_symlink(),
@@ -88,7 +89,16 @@ def read_skill(path, plugin=None):
     }
 
 
-def load_skills():
+def load_skills(roots=None):
+    """Live tree (own + enabled plugins) by default; any directories of SKILL.md files when roots are given."""
+    if roots:
+        skills = []
+        for root in roots:
+            root = Path(root).expanduser().resolve()
+            # hidden dirs such as .gemini/ hold mirrored copies; they are not separate skills
+            skills += [read_skill(p, root=root) for p in sorted(root.rglob('SKILL.md'))
+                       if 'node_modules' not in p.parts and not any(part.startswith('.') for part in p.relative_to(root).parts)]
+        return skills
     skills = [read_skill(p) for p in sorted(OWN.glob('*/SKILL.md'))]
     for plugin, root in enabled_plugins():
         skills += [read_skill(p, plugin) for p in sorted(root.glob('*/SKILL.md'))]

@@ -3,6 +3,7 @@
 import argparse
 import json
 import mimetypes
+import hashlib
 import secrets
 import subprocess
 import sys
@@ -13,7 +14,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import urlparse, parse_qs
 
-from engine import QUESTIONS, PRESETS, POLICY, prepare_questions, judge, credential, environment
+from engine import QUESTIONS, CONTENT_QUESTIONS, PRESETS, POLICY, prepare_questions, judge, credential, environment
 from skills import load_skills, evidence
 from store import Store, DECISIONS, stamp
 
@@ -23,7 +24,8 @@ ACTIVE = ('running', 'paused', 'stopping')
 
 
 class Application:
-    def __init__(self, path, key=None):
+    def __init__(self, path, key=None, roots=None):
+        self.roots = [str(Path(r).expanduser().resolve()) for r in (roots or [])]
         self.store = Store(path)
         self.data_dir = Path(path).parent
         self.key = credential() if key is None else key
@@ -40,8 +42,12 @@ class Application:
             if self.scan.get('status') == 'running':
                 raise ValueError('A scan is already running')
             self.scan = {'status': 'running', 'started_at': stamp()}
-        skills = load_skills()
+        skills = load_skills(self.roots)
         self.store.sync(skills)
+        if self.roots:
+            with self.lock:
+                self.scan = {'status': 'skipped', 'reason': 'custom roots: transcripts are not evidence for another tree'}
+            return
         threading.Thread(target=self._scan, args=(skills,), daemon=True).start()
 
     def _scan(self, skills):
@@ -60,14 +66,14 @@ class Application:
         except ValueError:
             return {}
 
-    def top_overlap(self, pairs):
-        best = {}
+    def top_overlap(self, pairs, n=3):
+        """name -> up to n partners, strongest first."""
+        partners = {}
         for k, score in pairs.items():
             a, b = k.split('|', 1)
-            for x, y in ((a, b), (b, a)):
-                if score > best.get(x, ('', -1))[1]:
-                    best[x] = (y, score)
-        return {k: {'with': v[0], 'score': round(v[1], 3)} for k, v in best.items()}
+            partners.setdefault(a, []).append({'with': b, 'score': round(score, 3)})
+            partners.setdefault(b, []).append({'with': a, 'score': round(score, 3)})
+        return {k: sorted(v, key=lambda o: -o['score'])[:n] for k, v in partners.items()}
 
     def run_overlap(self):
         with self.lock:
@@ -79,27 +85,40 @@ class Application:
         threading.Thread(target=self._overlap, daemon=True).start()
 
     def _overlap(self):
-        out = self.data_dir / 'overlap.md'
-        r = subprocess.run([sys.executable, str(AUDIT), 'overlap', '--out', str(out)], capture_output=True, text=True, timeout=1800)
+        # ponytail: audit.py pairs one directory at a time; several roots are audited separately and merged, cross-root pairs are not scored
+        merged, errors = {}, []
+        for i, root in enumerate(self.roots or [None]):
+            out = self.data_dir / f'overlap-{i}.md'
+            cmd = [sys.executable, str(AUDIT), 'overlap', '--out', str(out)] + (['--dir', root, '--recursive'] if root else [])
+            r = subprocess.run(cmd, capture_output=True, text=True, timeout=7200)
+            j = out.with_suffix('.json')
+            if r.returncode == 0 and j.exists():
+                merged.update(json.loads(j.read_text()))
+            else:
+                errors.append((r.stderr or 'audit failed')[-200:])
+        if merged:
+            (self.data_dir / 'overlap.json').write_text(json.dumps(merged, indent=1))
         with self.lock:
-            self.overlap = ({'status': 'done', 'finished_at': stamp()} if r.returncode == 0 and (self.data_dir / 'overlap.json').exists()
-                            else {'status': 'error', 'error': (r.stderr or 'audit failed')[-240:]})
+            self.overlap = {'status': 'done', 'finished_at': stamp()} if merged and not errors else {'status': 'error', 'error': ' | '.join(errors)[-240:] or 'no pairs'}
 
     def state(self):
         with self.lock:
             pairs = self.overlap_pairs()
             top = self.top_overlap(pairs)
-            skills = [{**s, 'evidence': self.evidence.get(s['id'], None), 'overlap': top.get(s['name'])} for s in self.store.skills()]
+            okey = (lambda s: s['id']) if self.roots else (lambda s: s['name'])
+            skills = [{**s, 'evidence': self.evidence.get(s['id'], None), 'overlap': (top.get(okey(s)) or [None])[0],
+                       'overlaps': top.get(okey(s), [])} for s in self.store.skills()]
             return {'skills': skills, 'runs': self.store.runs(), 'job': dict(self.job) if self.job else None,
-                    'scan': dict(self.scan), 'overlap': {**self.overlap, 'pairs': len(pairs)},
-                    'config': {'jev_available': bool(self.key), 'questions': QUESTIONS, 'presets': PRESETS,
+                    'scan': dict(self.scan), 'overlap': {**self.overlap, 'pairs': len(pairs)}, 'roots': self.roots,
+                    'config': {'jev_available': bool(self.key), 'questions': CONTENT_QUESTIONS if self.roots else QUESTIONS,
+                               'usage_questions': QUESTIONS, 'content_questions': CONTENT_QUESTIONS, 'presets': PRESETS,
                                'policy': POLICY, 'max_workers': 6, 'decisions': list(DECISIONS)}}
 
     # --- judgments -------------------------------------------------------------
     def start(self, payload):
         if not self.key:
             raise ValueError('Jev credential is not configured on the server')
-        questions = prepare_questions(payload.get('questions', QUESTIONS))
+        questions = prepare_questions(payload.get('questions', CONTENT_QUESTIONS if self.roots else QUESTIONS))
         workers, limit = payload.get('workers', 3), payload.get('limit', 200)
         if isinstance(workers, bool) or not isinstance(workers, int) or not 1 <= workers <= 6: raise ValueError('Workers must be 1–6')
         if isinstance(limit, bool) or not isinstance(limit, int) or not 1 <= limit <= 500: raise ValueError('Batch limit must be 1–500')
@@ -108,6 +127,8 @@ class Application:
         with self.lock:
             if self.job and self.job['status'] in ACTIVE: raise ValueError('A batch is already running')
             if self.scan.get('status') == 'running': raise ValueError('Evidence scan still running; wait a moment')
+            if not (self.data_dir / 'overlap.json').exists() and any(q.get('criteria', {}).get('partner_1') for q in questions.values() if isinstance(q.get('criteria'), dict)):
+                raise ValueError('The duplicate judgment needs overlap pairs. Run the overlap audit in Settings first.')
             skills = self.store.skills()
             selected = [s for s in skills if s['id'] in ids] if ids else [s for s in skills if not s['result'] or payload.get('reprocess') is True]
             selected = selected[:limit]
@@ -133,7 +154,7 @@ class Application:
                 while not stopped and not paused and next_index < len(skills) and len(futures) < workers:
                     s = skills[next_index]; next_index += 1
                     ev = self.evidence.get(s['id']) or {}
-                    futures[pool.submit(judge, s, ev, env, self.key, questions, top.get(s['name']))] = s
+                    futures[pool.submit(judge, s, ev, env, self.key, questions, top.get(s['id'] if self.roots else s['name'], []))] = s
                 if not futures:
                     time.sleep(0.05); continue
                 done, _ = wait(futures, timeout=0.2, return_when=FIRST_COMPLETED)
@@ -233,8 +254,11 @@ def handler(app, port):
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--port', type=int, default=3345)
-    parser.add_argument('--data', default=str(ROOT / '.data' / 'skills.sqlite'))
+    parser.add_argument('--data', help='SQLite path; defaults per root set under .data/')
+    parser.add_argument('--roots', help='comma-separated directories of SKILL.md files to review instead of the live tree')
     args = parser.parse_args()
-    app = Application(args.data)
+    roots = [r for r in (args.roots or '').split(',') if r.strip()]
+    data = args.data or str(ROOT / '.data' / (('roots-' + hashlib.sha256(','.join(sorted(roots)).encode()).hexdigest()[:8]) if roots else '') / 'skills.sqlite').replace('/.data//', '/.data/')
+    app = Application(data, roots=roots)
     print(f'Skills × Jev listening on http://localhost:{args.port} (Jev credential: {"available" if app.key else "not configured"})', flush=True)
     ThreadingHTTPServer(('127.0.0.1', args.port), handler(app, args.port)).serve_forever()

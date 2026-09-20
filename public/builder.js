@@ -26,17 +26,19 @@ function renderBuilder() {
  }).join('');
 }
 function savePlan() { localStorage.setItem('skilldash-judgments',JSON.stringify(judgmentPlan)); }
-function resultText(a) {
+function partnerName(a,s){return /^partner_\d$/.test(a.choice)?(s?.result?.candidates?.[a.choice]||a.choice):null;}
+function resultText(a,s) {
+ const p=a.type==='choice'?partnerName(a,s):null; if(p)return 'Duplicate of '+p;
  if(a.type==='noul')return `${a.noul>=.7?'Yes':a.noul<=.3?'No':'Uncertain'} · ${Math.round(a.noul*100)}% yes`;
  if(a.type==='score')return `${a.score.toFixed(2)} / ${Object.keys(a.legend).length-1}`;
  return judgmentTitle(a.choice);
 }
 function judgmentChips(s) {
  const answers=s.result?.answers||{};
- return Object.entries(answers).filter(([id])=>!['useful','action'].includes(id)).map(([id,a])=>`<span class="result-chip" title="${esc(s.result.questions?.[id]?.instructions||id)}">${esc(judgmentTitle(id))}: <b>${esc(resultText(a))}</b></span>`).join('') || '<span class="muted">—</span>';
+ return Object.entries(answers).filter(([id])=>!['useful','action'].includes(id)).map(([id,a])=>`<span class="result-chip" title="${esc(s.result.questions?.[id]?.instructions||id)}">${esc(judgmentTitle(id))}: <b>${esc(resultText(a,s))}</b></span>`).join('') || '<span class="muted">—</span>';
 }
 function judgmentDetails(pred) {
- return Object.entries(pred.answers||{}).map(([id,a])=>`<div class="judgment"><span>${esc(judgmentTitle(id))} · ${esc(a.type)}</span><strong>${esc(resultText(a))}</strong>${a.confidence!=null?`<p class="field-help">${Math.round(a.confidence*100)}% confidence in the distribution</p>`:''}<p class="field-help">${esc((pred.questions?.[id]?.instructions||'').replace(data.config.policy||'\u0000',''))}</p>${a.type==='score'?`<p class="field-help">${Object.entries(a.legend).map(([k,v])=>`${esc(k)}: ${esc(v)}`).join('<br>')}</p>`:''}</div>`).join('');
+ return Object.entries(pred.answers||{}).map(([id,a])=>`<div class="judgment"><span>${esc(judgmentTitle(id))} · ${esc(a.type)}</span><strong>${esc(resultText(a,{result:pred}))}</strong>${a.confidence!=null?`<p class="field-help">${Math.round(a.confidence*100)}% confidence in the distribution</p>`:''}<p class="field-help">${esc((pred.questions?.[id]?.instructions||'').replace(data.config.policy||'\u0000',''))}</p>${a.type==='score'?`<p class="field-help">${Object.entries(a.legend).map(([k,v])=>`${esc(k)}: ${esc(v)}`).join('<br>')}</p>`:''}</div>`).join('');
 }
 function resultDefinitions() {
  const defs={};
@@ -92,8 +94,9 @@ $('judgment-cards').addEventListener('change',e=>{
  savePlan();card.classList.toggle('enabled',q.enabled);card.querySelector('strong').textContent=judgmentTitle(q.id);render();
 });
 $('judgment-cards').addEventListener('click',e=>{const remove=e.target.closest('[data-remove]');if(!remove)return;judgmentPlan.splice(Number(remove.dataset.remove),1);savePlan();renderBuilder();render();});
-$('audit-preset').onclick=()=>{judgmentPlan=Object.entries(data.config.questions).map(([id,spec])=>({id,enabled:true,spec:structuredClone(spec)}));savePlan();renderBuilder();render();};
-$('extended-preset').onclick=()=>{judgmentPlan=Object.entries({...data.config.questions,...data.config.presets}).map(([id,spec])=>({id,enabled:true,spec:structuredClone(spec)}));savePlan();renderBuilder();render();};
+$('content-preset').onclick=()=>{judgmentPlan=Object.entries(data.config.content_questions).map(([id,spec])=>({id,enabled:true,spec:structuredClone(spec)}));savePlan();renderBuilder();render();};
+$('audit-preset').onclick=()=>{judgmentPlan=Object.entries(data.config.usage_questions).map(([id,spec])=>({id,enabled:true,spec:structuredClone(spec)}));savePlan();renderBuilder();render();};
+$('extended-preset').onclick=()=>{judgmentPlan=Object.entries({...data.config.usage_questions,...data.config.content_questions,...data.config.presets}).map(([id,spec])=>({id,enabled:true,spec:structuredClone(spec)}));savePlan();renderBuilder();render();};
 $('add-judgment').onclick=()=>{
  if(judgmentPlan.length>=12){toast('Up to 12 judgments per run.',true);return;}
  const type=$('new-judgment-type').value;let n=1;while(judgmentPlan.some(q=>q.id===`${type}_${n}`))n++;
